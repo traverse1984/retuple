@@ -66,14 +66,14 @@ export class RetupleThrownValueError extends Error {
 /**
  * ## Retuple Invalid Result Error
  *
- * An error constructed when a safe function call throws or rejects, when the
- * thrown error or rejected value is not an instance of `Error`, and when no
- * map error function is provided.
+ * An error thrown when attempting to construct a `Result` from a native tuple,
+ * when neither index 0 or 1 are null or undefined. In this case, it is impossible
+ * to determine whether the result should be `Ok` or `Err`.
  */
 export class RetupleInvalidResultError extends Error {
   constructor(public value: unknown[]) {
     super(
-      "Constructing a Result from tuple failed, at least one of the values at index 0 or 1 should be undefined"
+      "Constructing a Result from native tuple failed, at least one of the values at index 0 or 1 should be null or undefined"
     );
   }
 }
@@ -276,6 +276,10 @@ class ResultOk<T, E> extends Array<T | undefined> implements Retuple<T, E> {
     return this[1];
   }
 
+  $ok(this: Ok<T>): T {
+    return this[1];
+  }
+
   $isOk(this: Ok<T>): this is Ok<T> {
     return true;
   }
@@ -443,6 +447,10 @@ class ResultErr<T, E> extends Array<E | undefined> implements Retuple<T, E> {
     return this[0];
   }
 
+  $ok(this: Err<E>): undefined {
+    undefined;
+  }
+
   $isOk(this: Err<E>): this is never {
     return false;
   }
@@ -600,8 +608,24 @@ class ResultAsync<T, E> {
   /**
    * @TODO
    */
+  async $toNativeTuple(
+    this: ResultAsync<T, E>
+  ): Promise<OkTuple<T> | ErrTuple<E>> {
+    return (await this.#inner).$toNativeTuple();
+  }
+
+  /**
+   * @TODO
+   */
   async $value(this: ResultAsync<T, E>): Promise<T | E> {
     return (await this.#inner).$value();
+  }
+
+  /**
+   * @TODO
+   */
+  async $ok(this: ResultAsync<T, E>): Promise<T | undefined> {
+    return (await this.#inner).$ok();
   }
 
   /**
@@ -1005,6 +1029,11 @@ interface Retuple<T, E> {
    * @TODO
    */
   $value(this: Result<T, E>): T | E;
+
+  /**
+   * @TODO
+   */
+  $ok(this: Result<T, E>): T | undefined;
 
   /**
    * @TODO

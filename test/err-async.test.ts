@@ -10,6 +10,30 @@ import {
 } from "../src/index.js";
 
 describe("ResultAsync (Err)", () => {
+  describe("$toNativeTuple", () => {
+    it("should resolve to an equivalent tuple which is not an Err instance", async () => {
+      await expect(
+        Err("test").$async().$toNativeTuple()
+      ).resolves.not.toStrictEqual(Err("test"));
+
+      await expect(
+        Err("test").$async().$toNativeTuple()
+      ).resolves.toStrictEqual([...Err("test")]);
+    });
+  });
+
+  describe("$value", () => {
+    it("should resolve to the contained value", async () => {
+      await expect(Err("test").$async().$value()).resolves.toBe("test");
+    });
+  });
+
+  describe("$ok", () => {
+    it("should resolve to undefined", async () => {
+      await expect(Err("test").$async().$ok()).resolves.toBe(undefined);
+    });
+  });
+
   describe("$expect", () => {
     it("should reject with the contained value when it is an instance of Error", async () => {
       await expect(Err(errReject).$async().$expect()).rejects.toBe(errReject);

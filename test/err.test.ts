@@ -53,6 +53,12 @@ describe("Err", () => {
     });
   });
 
+  describe("$ok", () => {
+    it("should return undefined", () => {
+      expect(Err("test").$ok()).toBe(undefined);
+    });
+  });
+
   describe("$isOk", () => {
     it("should return false", () => {
       expect(Err().$isOk()).toBe(false);

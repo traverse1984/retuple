@@ -54,6 +54,12 @@ describe("Ok", () => {
     });
   });
 
+  describe("$ok", () => {
+    it("should return the contained value", () => {
+      expect(Ok("test").$ok()).toBe("test");
+    });
+  });
+
   describe("$isOk", () => {
     it("should return true", () => {
       expect(Ok().$isOk()).toBe(true);

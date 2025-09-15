@@ -9,6 +9,30 @@ import {
 } from "../src/index.js";
 
 describe("ResultAsync (Ok)", async () => {
+  describe("$toNativeTuple", () => {
+    it("should resolve to an equivalent tuple which is not an Ok instance", async () => {
+      await expect(
+        Ok("test").$async().$toNativeTuple()
+      ).resolves.not.toStrictEqual(Ok("test"));
+
+      await expect(Ok("test").$async().$toNativeTuple()).resolves.toStrictEqual(
+        [...Ok("test")]
+      );
+    });
+  });
+
+  describe("$value", () => {
+    it("should resolve to the contained value", async () => {
+      await expect(Ok("test").$async().$value()).resolves.toBe("test");
+    });
+  });
+
+  describe("$ok", () => {
+    it("should resolve to the contained value", async () => {
+      await expect(Ok("test").$async().$ok()).resolves.toBe("test");
+    });
+  });
+
   describe("$expect", () => {
     it("should resolve to the contained value", async () => {
       await expect(Ok("test").$async().$expect()).resolves.toBe("test");

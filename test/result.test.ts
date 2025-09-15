@@ -63,18 +63,20 @@ describe("Result", () => {
     });
 
     it("should return Ok with the from value when the from value is neither null or undefined", () => {
-      expect(Result.nonNullable(false).$isOk()).toBe(true);
-      expect(Result.nonNullable("").$isOk()).toBe(true);
+      expect(Result.nonNullable(false)).toStrictEqual(Ok(false));
+      expect(Result.nonNullable("")).toStrictEqual(Ok(""));
     });
 
     it("should return Err with true when the from value is null or undefined", () => {
-      expect(Result.nonNullable(null).$isErr()).toBe(true);
-      expect(Result.nonNullable(undefined).$isErr()).toBe(true);
+      expect(Result.nonNullable(null)).toStrictEqual(Err(true));
+      expect(Result.nonNullable(undefined)).toStrictEqual(Err(true));
     });
 
     it("should return Err with the error value when the from value is null or undefined, and the error function is provided", () => {
-      expect(Result.nonNullable(null, () => "test").$value()).toBe("test");
-      expect(Result.nonNullable(undefined, () => "test").$value()).toBe("test");
+      expect(Result.nonNullable(null, () => "test")).toStrictEqual(Err("test"));
+      expect(Result.nonNullable(undefined, () => "test")).toStrictEqual(
+        Err("test")
+      );
     });
   });
 
@@ -103,17 +105,17 @@ describe("Result", () => {
     });
 
     it("should return Ok with the from value when the from value is truthy", () => {
-      expect(Result.truthy(true).$isOk()).toBe(true);
-      expect(Result.truthy("truthy").$isOk()).toBe(true);
+      expect(Result.truthy(true)).toStrictEqual(Ok(true));
+      expect(Result.truthy("truthy")).toStrictEqual(Ok("truthy"));
     });
 
     it("should return Err with true when the from value is falsey", () => {
-      expect(Result.truthy(false).$isErr()).toBe(true);
-      expect(Result.truthy("").$isErr()).toBe(true);
+      expect(Result.truthy(false)).toStrictEqual(Err(true));
+      expect(Result.truthy("")).toStrictEqual(Err(true));
     });
 
     it("should return Err with the error value when the from value is falsey, and the error function is provided", () => {
-      expect(Result.truthy(undefined, () => "test").$value()).toBe("test");
+      expect(Result.truthy(undefined, () => "test")).toStrictEqual(Err("test"));
     });
   });
 
@@ -247,13 +249,13 @@ describe("Result", () => {
 
     it("Resolves to Ok with the safe value", async () => {
       await expect(
-        Result.safePromise(Promise.resolve("test")).$value()
-      ).resolves.toBe("test");
+        Result.safePromise(Promise.resolve("test"))
+      ).resolves.toStrictEqual(Ok("test"));
     });
 
     it("Resolves to Err with the rejected value when the promise rejects", async () => {
-      await expect(Result.safePromise(fnReject()).$value()).resolves.toBe(
-        errReject
+      await expect(Result.safePromise(fnReject())).resolves.toStrictEqual(
+        Err(errReject)
       );
     });
 
