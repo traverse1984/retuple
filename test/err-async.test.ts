@@ -1,4 +1,4 @@
-import { vi, describe, test, expect } from "vitest";
+import { vi, describe, it, expect } from "vitest";
 import { errThrow, errReject, fnThrow, fnReject } from "./util.js";
 
 import {
@@ -11,430 +11,563 @@ import {
 
 describe("ResultAsync (Err)", () => {
   describe("$expect", () => {
-    test("Rejects with the contained value if it is an instance of Error", async () => {
+    it("should reject with the contained value when it is an instance of Error", async () => {
       await expect(Err(errReject).$async().$expect()).rejects.toBe(errReject);
     });
 
-    test("Rejects with RetupleExpectFailed if the contained value is not an instance of Error", async () => {
+    it("should reject with RetupleExpectFailed when the contained value is not an instance of Error", async () => {
       await expect(Err<any>("test").$async().$expect()).rejects.toThrow(
-        RetupleExpectFailed,
+        RetupleExpectFailed
       );
+    });
+
+    it("should include the contained value on the thrown RetupleExpectFailed", async () => {
       await expect(Err<any>("test").$async().$expect()).rejects.toThrow(
-        expect.objectContaining({ value: "test" }),
+        expect.objectContaining({ value: "test" })
       );
     });
   });
 
   describe("$unwrap", () => {
-    test("Rejects with RetupleUnwrapFailed", async () => {
+    it("should reject with RetupleUnwrapFailed", async () => {
       await expect(Err("test").$async().$unwrap()).rejects.toThrow(
-        RetupleUnwrapFailed,
-      );
-      await expect(Err("test").$async().$unwrap()).rejects.toThrow(
-        expect.objectContaining({ value: "test" }),
+        RetupleUnwrapFailed
       );
     });
 
-    test("Uses the custom message if provided", async () => {
-      await expect(
-        Err("test").$async().$unwrap("Test error message"),
-      ).rejects.toThrow("Test error message");
+    it("should include the contained value on the reject RetupleUnwrapFailed", async () => {
+      await expect(Err("test").$async().$unwrap()).rejects.toThrow(
+        expect.objectContaining({ value: "test" })
+      );
     });
 
-    test("Populates the cause if the error is an instance of Error", async () => {
-      await expect(Err(errReject).$async().$unwrap()).rejects.toThrow(
+    it("should include the cause on the rejected RetupleUnwrapFailed when the contained value is an instance of Error", async () => {
+      await expect(Err(errThrow).$async().$unwrap()).rejects.toThrow(
         expect.objectContaining({
-          cause: errReject,
-        }),
+          cause: errThrow,
+        })
       );
+    });
+
+    it("should use the custom error message for the rejected RetupleUnwrapFailed when provided", async () => {
+      await expect(
+        Err().$async().$unwrap("Test error message")
+      ).rejects.toThrow("Test error message");
     });
   });
 
   describe("$unwrapErr", () => {
-    test("Resolves to the contained value", async () => {
+    it("should resolve to the contained value", async () => {
       await expect(Err("test").$async().$unwrapErr()).resolves.toBe("test");
     });
   });
 
   describe("$unwrapOr", () => {
-    test("Resolves to the default value", async () => {
+    it("should resolve to the default value", async () => {
       await expect(Err("test").$async().$unwrapOr("default")).resolves.toBe(
-        "default",
+        "default"
       );
     });
   });
 
   describe("$unwrapOrElse", () => {
-    test("Resolves to the value obtained by calling the function", async () => {
-      const fn = vi.fn(() => "default");
+    it("should invoke the default function with no arguments", async () => {
+      const fnDefault = vi.fn(() => {});
 
-      await expect(Err("test").$async().$unwrapOrElse(fn)).resolves.toBe(
-        "default",
-      );
-      expect(fn).toHaveBeenCalledExactlyOnceWith();
+      await Err().$async().$unwrapOrElse(fnDefault);
+
+      expect(fnDefault).toHaveBeenCalledExactlyOnceWith();
     });
 
-    test("Rejects with the error when the function throws", async () => {
+    it("should reject with the error when the default function throws", async () => {
       await expect(Err().$async().$unwrapOrElse(fnThrow)).rejects.toBe(
-        errThrow,
+        errThrow
       );
+    });
+
+    it("should resolve to the default value", async () => {
+      await expect(
+        Err()
+          .$async()
+          .$unwrapOrElse(() => "default")
+      ).resolves.toBe("default");
     });
   });
 
   describe("$map", () => {
-    test("Resolves to itself", async () => {
-      const err = Err();
-      const fn = vi.fn(() => "mapped");
+    it("should not invoke the map function", async () => {
+      const fnMap = vi.fn(() => {});
 
-      await expect(err.$async().$map(fn)).resolves.toBe(err);
-      expect(fn).not.toHaveBeenCalled();
+      await Err().$async().$map(fnMap);
+
+      expect(fnMap).not.toHaveBeenCalled();
+    });
+
+    it("should resolve to Err with the contained value", async () => {
+      await expect(
+        Err("test")
+          .$async()
+          .$map(() => "mapped")
+      ).resolves.toStrictEqual(Err("test"));
     });
   });
 
   describe("$mapErr", () => {
-    test("Resolves to Err containing the mapped value", async () => {
-      const fn = vi.fn(() => "mapped");
+    it("should invoke the map error function with the contained value", async () => {
+      const fnMapErr = vi.fn(() => {});
 
-      await expect(Err("test").$async().$mapErr(fn).$unwrapErr()).resolves.toBe(
-        "mapped",
-      );
-      expect(fn).toHaveBeenCalledExactlyOnceWith("test");
+      await Err("test").$async().$mapErr(fnMapErr);
+
+      expect(fnMapErr).toHaveBeenCalledExactlyOnceWith("test");
     });
 
-    test("Rejects with the error when the function throws", async () => {
+    it("should reject when the map erro function throws", async () => {
       await expect(Err().$async().$mapErr(fnThrow)).rejects.toBe(errThrow);
+    });
+
+    it("should resolve to Err containing the mapped value", async () => {
+      await expect(
+        Err("test")
+          .$async()
+          .$mapErr(() => "mapped")
+          .$unwrapErr()
+      ).resolves.toBe("mapped");
     });
   });
 
   describe("$mapOr", () => {
-    test("Resolves to Ok containing the default value", async () => {
-      const fn = vi.fn(() => "mapped");
+    it("should not invoke the map function", async () => {
+      const fnMap = vi.fn(() => {});
 
+      await Err().$async().$mapOr("default", fnMap);
+
+      expect(fnMap).not.toHaveBeenCalled();
+    });
+
+    it("should resolve to Ok containing the default value", async () => {
       await expect(
-        Err("test").$async().$mapOr("default", fn).$unwrap(),
+        Err("test")
+          .$async()
+          .$mapOr("default", () => "mapped")
+          .$unwrap()
       ).resolves.toBe("default");
     });
   });
 
   describe("$mapOrElse", () => {
     describe("Err", () => {
-      test("Resolves to Ok containing the value from the default function", async () => {
-        const fnDefault = vi.fn(() => "default");
-        const fnMap = vi.fn(() => "mapped");
+      it("should invoke the default function with the contained value", async () => {
+        const fnDefault = vi.fn(() => {});
 
-        await expect(
-          Err("test").$async().$mapOrElse(fnDefault, fnMap).$unwrap(),
-        ).resolves.toBe("default");
+        await Err("test")
+          .$async()
+          .$mapOrElse(fnDefault, () => {});
+
         expect(fnDefault).toHaveBeenCalledExactlyOnceWith("test");
-        expect(fnMap).not.toHaveBeenCalled();
       });
 
-      test("Rejects with the error when the default function throws", async () => {
+      it("should reject when the default function throws", async () => {
         await expect(
           Err()
             .$async()
-            .$mapOrElse(fnThrow, () => {}),
+            .$mapOrElse(fnThrow, () => {})
         ).rejects.toBe(errThrow);
       });
-    });
-  });
 
-  describe("$or", () => {
-    describe("Err", () => {
-      test("Resolves to the provided Result", async () => {
-        const result = Ok();
+      it("should not invoke the map function", async () => {
+        const fnMap = vi.fn(() => {});
 
-        await expect(Err().$async().$or(result)).resolves.toBe(result);
-        await expect(Err().$async().$or(result.$async())).resolves.toBe(result);
-        await expect(Err().$async().$or(Promise.resolve(result))).resolves.toBe(
-          result,
-        );
+        await Err()
+          .$async()
+          .$mapOrElse(() => {}, fnMap);
+
+        expect(fnMap).not.toHaveBeenCalled();
       });
 
-      test("Rejects with the error if the promise rejects", async () => {
-        await expect(Err().$async().$or(fnReject())).rejects.toBe(errReject);
-      });
-    });
-  });
-
-  describe("$orElse", () => {
-    describe("Err", () => {
-      test("Resolves to the Result obtained by calling the function", async () => {
-        const result = Ok();
-        const fnSync = vi.fn(() => result);
-        const fnAsync = vi.fn(async () => result);
-
-        await expect(Err("test").$async().$orElse(fnSync)).resolves.toBe(
-          result,
-        );
-        expect(fnSync).toHaveBeenCalledExactlyOnceWith("test");
-
-        await expect(Err("test").$async().$orElse(fnAsync)).resolves.toBe(
-          result,
-        );
-        expect(fnAsync).toHaveBeenCalledExactlyOnceWith("test");
-      });
-
-      test("Rejects with the error when the function throws", async () => {
-        await expect(Err().$async().$orElse(fnThrow)).rejects.toBe(errThrow);
-      });
-
-      test("Rejects with the error when the function returns a rejecting promise", async () => {
-        await expect(Err().$async().$orElse(fnReject)).rejects.toBe(errReject);
+      it("should resolve to Ok containing the value from the default function", async () => {
+        await expect(
+          Err("test")
+            .$async()
+            .$mapOrElse(
+              () => "default",
+              () => "mapped"
+            )
+            .$unwrap()
+        ).resolves.toBe("default");
       });
     });
   });
 
-  describe("$orSafe", () => {
-    test("Resolves to Ok if the function does not throw/reject", async () => {
-      const fnSync = vi.fn(() => "value");
-      const fnAsync = vi.fn(async () => "value");
+  describe("$assertOr", () => {
+    it("should not invoke the predicate/condition function", async () => {
+      const fnCond = vi.fn(() => true);
 
-      await expect(
-        Err("test").$async().$orSafe(fnSync).$unwrap(),
-      ).resolves.toBe("value");
-      expect(fnSync).toHaveBeenCalledExactlyOnceWith("test");
+      await Err().$async().$assertOr(Ok(), fnCond);
 
-      await expect(
-        Err("test").$async().$orSafe(fnAsync).$unwrap(),
-      ).resolves.toBe("value");
-      expect(fnAsync).toHaveBeenCalledExactlyOnceWith("test");
+      expect(fnCond).not.toHaveBeenCalled();
     });
 
-    test("Resolves to Err if the function throws/rejects", async () => {
-      const fnSync = vi.fn(() => {
-        throw errThrow;
-      });
-      const fnAsync = vi.fn(async () => {
-        throw errReject;
-      });
+    it("should not reject when the default promise rejects", async () => {
+      const rejected = fnReject();
 
       await expect(
-        Err("test").$async().$orSafe(fnSync).$unwrapErr(),
-      ).resolves.toBe(errThrow);
-      expect(fnSync).toHaveBeenCalledExactlyOnceWith("test");
-
-      await expect(
-        Err("test").$async().$orSafe(fnAsync).$unwrapErr(),
-      ).resolves.toBe(errReject);
-      expect(fnAsync).toHaveBeenCalledExactlyOnceWith("test");
+        Err("test")
+          .$async()
+          .$assertOr(rejected, () => true)
+      ).resolves.toStrictEqual(Err("test"));
+      await rejected.catch(() => {});
     });
 
-    test("Replaces the error value using the mapError function", async () => {
-      const fn = vi.fn(() => "test");
-
-      await expect(
-        Err("test").$async().$orSafe(fnThrow, fn).$unwrapErr(),
-      ).resolves.toBe("test");
-      expect(fn).toHaveBeenLastCalledWith(errThrow);
-
-      await expect(
-        Err("test").$async().$orSafe(fnReject, fn).$unwrapErr(),
-      ).resolves.toBe("test");
-      expect(fn).toHaveBeenLastCalledWith(errReject);
-      expect(fn).toHaveBeenCalledTimes(2);
-    });
-
-    test("Replaces the error with RetupleThrownValueError if it is not an instance of Error, and if no mapError function is provided", async () => {
-      const fnThrowNonError = () => {
-        throw "test";
-      };
-
-      await expect(
-        Err().$async().$orSafe(fnThrowNonError).$unwrapErr(),
-      ).resolves.toBeInstanceOf(RetupleThrownValueError);
-      await expect(
-        Err().$async().$orSafe(fnThrowNonError).$unwrapErr(),
-      ).resolves.toStrictEqual(expect.objectContaining({ value: "test" }));
-    });
-
-    test("Rejects with the error when the mapError function throws", async () => {
-      await expect(Err().$async().$orSafe(fnReject, fnThrow)).rejects.toBe(
-        errThrow,
+    it("should resolve to Err with the contained value", async () => {
+      await expect(Err("test").$async().$assertOr(Ok())).resolves.toStrictEqual(
+        Err("test")
       );
     });
   });
 
+  describe("$assertOrElse", () => {
+    it("should not invoke the default function", async () => {
+      const fnDefault = vi.fn(() => Ok());
+
+      await Err()
+        .$async()
+        .$assertOrElse(fnDefault, () => false);
+
+      expect(fnDefault).not.toHaveBeenCalled();
+    });
+
+    it("should not invoke the predicate/condition function", async () => {
+      const fnCond = vi.fn(() => true);
+
+      await Err().$async().$assertOr(Ok(), fnCond);
+
+      expect(fnCond).not.toHaveBeenCalled();
+    });
+
+    it("should not reject when the default promise rejects", async () => {
+      const rejected = fnReject();
+
+      await expect(
+        Err("test")
+          .$async()
+          .$assertOr(rejected, () => true)
+      ).resolves.toStrictEqual(Err("test"));
+
+      await rejected.catch(() => {});
+    });
+
+    it("should resolve to Err with the contained value", async () => {
+      await expect(
+        Err("test")
+          .$async()
+          .$assertOrElse(
+            () => Ok(),
+            () => true
+          )
+      ).resolves.toStrictEqual(Err("test"));
+    });
+  });
+
+  describe("$or", () => {
+    it("should reject when the promise rejects", async () => {
+      await expect(Err().$async().$or(fnReject())).rejects.toBe(errReject);
+    });
+
+    it("should resolve to the or Result", async () => {
+      await expect(Err().$async().$or(Ok("test"))).resolves.toStrictEqual(
+        Ok("test")
+      );
+
+      await expect(
+        Err().$async().$or(Ok("test").$async())
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Err()
+          .$async()
+          .$or(Promise.resolve(Ok("test")))
+      ).resolves.toStrictEqual(Ok("test"));
+    });
+  });
+
+  describe("$orElse", () => {
+    it("should invoke the or function with the contained value", async () => {
+      const fnOr = vi.fn(() => Ok());
+
+      await Err("test").$async().$orElse(fnOr);
+
+      expect(fnOr).toHaveBeenCalledExactlyOnceWith("test");
+    });
+
+    it("should reject when the or function throws", async () => {
+      await expect(Err().$async().$orElse(fnThrow)).rejects.toBe(errThrow);
+    });
+
+    it("should reject with the error when the or function rejects", async () => {
+      await expect(Err().$async().$orElse(fnReject)).rejects.toBe(errReject);
+    });
+
+    it("should resolve to the or Result", async () => {
+      await expect(
+        Err()
+          .$async()
+          .$orElse(() => Ok("test"))
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Err()
+          .$async()
+          .$orElse(() => Ok("test"))
+      ).resolves.toStrictEqual(Ok("test"));
+    });
+  });
+
+  describe("$orSafe", () => {
+    it("should invoke the safe function with the contained value", async () => {
+      const fnSafe = vi.fn(() => "value");
+
+      await Err("test").$async().$orSafe(fnSafe);
+
+      expect(fnSafe).toHaveBeenCalledExactlyOnceWith("test");
+    });
+
+    it("should invoke the map error function with the thrown value when the safe function throws", async () => {
+      const fnMapError = vi.fn(() => {});
+
+      await Err().$async().$orSafe(fnThrow, fnMapError);
+
+      expect(fnMapError).toHaveBeenCalledExactlyOnceWith(errThrow);
+    });
+
+    it("should invoke the map error function with the rejected value when the safe function rejects", async () => {
+      const fnMapError = vi.fn(() => {});
+
+      await Err().$async().$orSafe(fnReject, fnMapError);
+
+      expect(fnMapError).toHaveBeenCalledExactlyOnceWith(errReject);
+    });
+
+    it("should reject when the map error function throws", async () => {
+      await expect(Err().$async().$orSafe(fnReject, fnThrow)).rejects.toBe(
+        errThrow
+      );
+    });
+
+    it("should resolve to Ok with the safe value", async () => {
+      await expect(
+        Err()
+          .$async()
+          .$orSafe(() => "test")
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Err()
+          .$async()
+          .$orSafe(async () => "test")
+      ).resolves.toStrictEqual(Ok("test"));
+    });
+
+    it("should resolve to Err with the thrown/rejected error when the safe function throws or rejects", async () => {
+      await expect(
+        Err("test").$async().$orSafe(fnThrow)
+      ).resolves.toStrictEqual(Err(errThrow));
+
+      await expect(
+        Err("test").$async().$orSafe(fnReject)
+      ).resolves.toStrictEqual(Err(errReject));
+    });
+
+    it("should map the error to RetupleThrownValueError when it is not an instance of Error, and when no map error function is provided", async () => {
+      await expect(
+        Err()
+          .$async()
+          .$orSafe(() => {
+            throw "test";
+          })
+      ).resolves.toStrictEqual(Err(new RetupleThrownValueError("test")));
+
+      await expect(
+        Err()
+          .$async()
+          .$orSafe(async () => {
+            throw "test";
+          })
+      ).resolves.toStrictEqual(Err(new RetupleThrownValueError("test")));
+    });
+
+    it("should map the error with the map error function when provided", async () => {
+      await expect(
+        Err()
+          .$async()
+          .$orSafe(fnThrow, () => "test")
+      ).resolves.toStrictEqual(Err("test"));
+
+      await expect(
+        Err()
+          .$async()
+          .$orSafe(fnReject, () => "test")
+      ).resolves.toStrictEqual(Err("test"));
+    });
+  });
+
   describe("$and", () => {
-    describe("Err", () => {
-      test("Resolves to itself", async () => {
-        const err = Err();
+    it("should not reject when the and promise rejects", async () => {
+      const rejected = fnReject();
 
-        await expect(err.$async().$and(Ok())).resolves.toBe(err);
-        await expect(err.$async().$and(Ok().$async())).resolves.toBe(err);
-        await expect(err.$async().$and(Promise.resolve(Ok()))).resolves.toBe(
-          err,
-        );
-      });
+      await expect(Err("test").$async().$and(rejected)).resolves.toStrictEqual(
+        Err("test")
+      );
 
-      test("Does not reject if the promise rejects", async () => {
-        const err = Err();
-        const rejected = fnReject();
+      await rejected.catch(() => {});
+    });
 
-        await expect(err.$async().$and(rejected)).resolves.toBe(err);
-        await rejected.catch(() => {});
-      });
+    it("should return Err with the contained value", async () => {
+      await expect(Err("test").$async().$and(Ok())).resolves.toStrictEqual(
+        Err("test")
+      );
     });
   });
 
   describe("$andThen", () => {
-    describe("Err", () => {
-      test("Resolves to itself", async () => {
-        const err = Err();
-        const fn = vi.fn(() => Ok());
+    it("should not invoke the and function", async () => {
+      const fnAnd = vi.fn(() => Ok());
 
-        await expect(err.$async().$andThen(fn)).resolves.toBe(err);
-        expect(fn).not.toHaveBeenCalled();
-      });
+      await Err().$async().$andThen(fnAnd);
+
+      expect(fnAnd).not.toHaveBeenCalled();
+    });
+
+    it("should return Err with the contained value", async () => {
+      await expect(Err("test").$async().$and(Ok())).resolves.toStrictEqual(
+        Err("test")
+      );
     });
   });
 
   describe("$andThrough", () => {
-    test("Resolves to itself", async () => {
-      const err = Err();
-      const fn = vi.fn(() => Ok());
+    it("should not invoke the through function", async () => {
+      const fnThrough = vi.fn(() => Ok());
 
-      await expect(err.$async().$andThrough(fn)).resolves.toBe(err);
-      expect(fn).not.toHaveBeenCalled();
+      await Err().$async().$andThrough(fnThrough);
+
+      expect(fnThrough).not.toHaveBeenCalled();
+    });
+
+    it("should return Err with the contained value", async () => {
+      await expect(Err("test").$async().$and(Ok())).resolves.toStrictEqual(
+        Err("test")
+      );
     });
   });
 
   describe("$andSafe", () => {
-    test("Returns itself", async () => {
-      const err = Err();
-      const fn = vi.fn(() => {});
+    it("should not invoke the safe function", async () => {
+      const fnSafe = vi.fn(() => {});
+
+      await Err().$async().$andSafe(fnSafe);
+
+      expect(fnSafe).not.toHaveBeenCalled();
+    });
+
+    it("should not invoke the map error function", async () => {
       const fnMapError = vi.fn(() => {});
 
-      await expect(err.$async().$andSafe(fn, fnMapError)).resolves.toBe(err);
-      expect(fn).not.toHaveBeenCalled();
+      await Err().$async().$andSafe(fnThrow, fnMapError);
+      await Err().$async().$andSafe(fnReject, fnMapError);
+
       expect(fnMapError).not.toHaveBeenCalled();
+    });
+
+    it("should resolve to Err with the contained value", async () => {
+      await expect(
+        Err("test")
+          .$async()
+          .$andSafe(() => {})
+      ).resolves.toStrictEqual(Err("test"));
     });
   });
 
   describe("$peek", () => {
-    test("Resolves to itself after calling the function with the Ok", async () => {
-      const err = Err();
-      const fnSync = vi.fn(() => {});
-      const fnAsync = vi.fn(async () => {});
+    it("should invoke the peek function with the current Result", async () => {
+      let calledWithValue: any;
+      const fnPeek = vi.fn((value) => (calledWithValue = value));
 
-      await expect(err.$async().$peek(fnSync)).resolves.toBe(err);
-      expect(fnSync).toHaveBeenCalledExactlyOnceWith(err);
+      await Err("test").$async().$peek(fnPeek);
 
-      await expect(err.$async().$peek(fnAsync)).resolves.toBe(err);
-      expect(fnAsync).toHaveBeenCalledExactlyOnceWith(err);
+      expect(fnPeek).toHaveBeenCalledTimes(1);
+      expect(calledWithValue).toStrictEqual(Err("test"));
     });
 
-    test("Rejects with the error when the function throws", async () => {
+    it("should reject when the peek function throws", async () => {
       await expect(Err().$async().$peek(fnThrow)).rejects.toBe(errThrow);
     });
 
-    test("Rejects with the error when the function returns a rejecting promise", async () => {
+    it("should reject when the peek function rejects", async () => {
       await expect(Err().$async().$peek(fnReject)).rejects.toBe(errReject);
+    });
+
+    it("should resolve to Err with the contained value", async () => {
+      await expect(
+        Err("test")
+          .$async()
+          .$peek(() => {})
+      ).resolves.toStrictEqual(Err("test"));
     });
   });
 
   describe("$tap", () => {
-    test("Resolves to itself", async () => {
-      const err = Err();
-      const fn = vi.fn(() => {});
+    it("should not invoke the tap function", async () => {
+      const fnTap = vi.fn(() => {});
 
-      await expect(err.$async().$tap(fn)).resolves.toBe(err);
-      expect(fn).not.toHaveBeenCalled();
+      await Err().$async().$tap(fnTap);
+
+      expect(fnTap).not.toHaveBeenCalled();
+    });
+
+    it("should resolve to Ok with the contained value", async () => {
+      await expect(
+        Ok("test")
+          .$async()
+          .$tap(() => {})
+      ).resolves.toStrictEqual(Ok("test"));
     });
   });
 
   describe("$tapErr", () => {
-    test("Resolves to itself after calling the function", async () => {
-      const err = Err("test");
-      const fnSync = vi.fn(() => {});
-      const fnAsync = vi.fn(async () => {});
+    it("should invoke the tap error function with the contained value", async () => {
+      const fnTapErr = vi.fn(() => {});
 
-      await expect(err.$async().$tapErr(fnSync)).resolves.toBe(err);
-      expect(fnSync).toHaveBeenCalledExactlyOnceWith("test");
+      await Err("test").$async().$tapErr(fnTapErr);
 
-      await expect(err.$async().$tapErr(fnAsync)).resolves.toBe(err);
-      expect(fnAsync).toHaveBeenCalledExactlyOnceWith("test");
+      expect(fnTapErr).toHaveBeenCalledExactlyOnceWith("test");
     });
 
-    test("Rejects with the error when the function throws", async () => {
+    it("should reject when the tap error function throws", async () => {
       await expect(Err().$async().$tapErr(fnThrow)).rejects.toBe(errThrow);
     });
 
-    test("Rejects with the error when the function returns a rejecting promise", async () => {
+    it("should reject when the tap error function rejects", async () => {
       await expect(Err().$async().$tapErr(fnReject)).rejects.toBe(errReject);
+    });
+
+    it("should resolve to Ok with the contained value", async () => {
+      await expect(
+        Err("test")
+          .$async()
+          .$tapErr(() => {})
+      ).resolves.toStrictEqual(Err("test"));
     });
   });
 
   describe("$promise", () => {
-    test("Returns a Promise which resolves to inner Err", async () => {
-      const err = Err();
-      const errPromise = err.$async().$promise();
+    it("should return a Promise", () => {
+      expect(Err().$async().$promise()).toBeInstanceOf(Promise);
+    });
 
-      expect(errPromise).toBeInstanceOf(Promise);
-      await expect(errPromise).resolves.toBe(err);
+    it("should resolve to Err with the contained value", async () => {
+      await expect(Err("test").$async().$promise()).resolves.toStrictEqual(
+        Err("test")
+      );
     });
   });
-
-  //     describe("$andThrough", () => {
-  //     describe("Ok", () => {});
-
-  //     describe("Err", () => {});
-  //   });
-
-  //   describe("Ok", () => {});
-  // describe("Err", () => {});
-
-  //   describe("$flatten", () => {
-  //     test("Returns the contained result", () => {
-  //       const okInner = Ok("inner");
-  //       const errInner = Err("inner");
-
-  //       expect(Ok(okInner).$flatten()).toBe(okInner);
-  //       expect(Ok(errInner).$flatten()).toBe(errInner);
-  //     });
-  //   });
-
-  //   describe("$peek", () => {
-  //     test("Returns itself after calling the provided function", () => {
-  //       const ok = Ok("test");
-  //       const peekFn = vi.fn(() => "peek");
-
-  //       expect(ok.$peek(peekFn)).toBe(ok);
-  //       expect(peekFn).toHaveBeenCalledExactlyOnceWith(ok);
-  //     });
-
-  //     testThrow(() => Ok("test").$peek(fn));
-  //   });
-
-  //   describe("$tap", () => {
-  //     test("Returns itself after calling the provided function", () => {
-  //       const ok = Ok("test");
-  //       const fn = vi.fn(() => "tap");
-
-  //       expect(ok.$tap(fn)).toBe(ok);
-  //       expect(fn).toHaveBeenCalledExactlyOnceWith("test");
-  //     });
-
-  //     testThrow(() => Ok("test").$tap(fn));
-  //   });
-
-  //   describe("$tapErr", () => {
-  //     test("Returns itself (noop for Ok)", () => {
-  //       const ok = Ok("test");
-  //       const fn = vi.fn(() => "tapErr");
-
-  //       expect(ok.$tapErr(fn)).toBe(ok);
-  //       expect(fn).not.toHaveBeenCalled();
-  //     });
-  //   });
-
-  //   describe("$intoAsync", () => {
-  //     test("Returns a ResultAsync which resolves to the Ok", async () => {
-  //       const ok = Ok("test");
-  //       const okAsync = ok.$intoAsync();
-
-  //       expect(okAsync).toBeInstanceOf(ResultAsync);
-  //       expect(await okAsync).toBe(ok);
-  //     });
-  //   });
 });

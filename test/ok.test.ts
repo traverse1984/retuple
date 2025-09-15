@@ -1,354 +1,588 @@
-import { vi, describe, test, expect } from "vitest";
-import { ResultOk, ResultAsync } from "./internals.js";
+import { vi, describe, it, expect } from "vitest";
 import { capture, errThrow, fnThrow } from "./util.js";
 
 import {
   Ok,
   Err,
+  safeAsync,
   RetupleUnwrapErrFailed,
   RetupleThrownValueError,
 } from "../src/index.js";
 
 describe("Ok", () => {
-  test("Returns an instance of ResultOk", () => {
-    expect(Ok()).toBeInstanceOf(ResultOk);
+  it("should be an instance of Array", () => {
+    expect(Ok()).toBeInstanceOf(Array);
   });
 
-  test("Is an array of length 2", () => {
-    const ok = Ok();
-
-    expect(ok).toBeInstanceOf(Array);
-    expect(ok.length).toBe(2);
+  it("should have two elements", () => {
+    expect(Ok().length).toBe(2);
   });
 
-  test("The first element is undefined", () => {
+  it("should have undefined at index 0", () => {
     expect(Ok("test")[0]).toBe(undefined);
   });
 
-  test("The second element is the value", () => {
+  it("should have the contained value at index 1", () => {
     expect(Ok("test")[1]).toBe("test");
   });
 
-  test("When called with no arguments, the value is undefined", () => {
+  it("should use undefined as the contained value when constructed without arguments", () => {
     expect(Ok()[1]).toBe(undefined);
   });
 
+  it("should JSON stringify to the JSON representation of the contained value", () => {
+    expect(JSON.stringify(Ok())).toBe(JSON.stringify(undefined));
+    expect(JSON.stringify(Ok(null))).toBe(JSON.stringify(null));
+    expect(JSON.stringify(Ok(NaN))).toBe(JSON.stringify(NaN));
+    expect(JSON.stringify(Ok("test"))).toBe(JSON.stringify("test"));
+    expect(JSON.stringify(Ok([1, 2, 3]))).toBe(JSON.stringify([1, 2, 3]));
+    expect(JSON.parse(JSON.stringify(Ok({ a: 1, b: 2 })))).toStrictEqual(
+      JSON.parse(JSON.stringify({ a: 1, b: 2 }))
+    );
+  });
+
+  describe("$toNativeTuple", () => {
+    it("should return an equivalent tuple which is not an Ok instance", () => {
+      expect(Ok("test").$toNativeTuple()).not.toStrictEqual(Ok("test"));
+      expect(Ok("test").$toNativeTuple()).toStrictEqual([...Ok("test")]);
+    });
+  });
+
   describe("$value", () => {
-    test("Returns the contained value", () => {
+    it("should return the contained value", () => {
       expect(Ok("test").$value()).toBe("test");
     });
   });
 
   describe("$isOk", () => {
-    test("Returns true", () => {
+    it("should return true", () => {
       expect(Ok().$isOk()).toBe(true);
     });
   });
 
   describe("$isOkAnd", () => {
-    test("Returns the outcome of the predicate function", () => {
-      const fn = vi.fn((value) => value === "test");
+    it("should invoke the predicate/condition function with the contained value", () => {
+      const fnCond = vi.fn(() => {});
 
-      expect(Ok("test").$isOkAnd(fn)).toBe(true);
-      expect(fn).toHaveBeenLastCalledWith("test");
+      Ok("test").$isOkAnd(fnCond);
 
-      expect(Ok("value").$isOkAnd(fn)).toBe(false);
-      expect(fn).toHaveBeenLastCalledWith("value");
-      expect(fn).toHaveBeenCalledTimes(2);
+      expect(fnCond).toHaveBeenCalledExactlyOnceWith("test");
     });
 
-    test("Throws the error when the predicate function throws", () => {
+    it("should throw when the predicate/condition function throws", () => {
       expect(capture(() => Ok().$isOkAnd(fnThrow))).toBe(errThrow);
+    });
+
+    it("should return true when the predicate/condition function returns a truthy value", () => {
+      expect(Ok("test").$isOkAnd((val) => val === "test")).toBe(true);
+      expect(Ok().$isOkAnd(() => "truthy")).toBe(true);
+    });
+
+    it("should return false when the predicate/condition function returns a falsey value", () => {
+      expect(Ok<string>("test").$isOkAnd((val) => val !== "test")).toBe(false);
+      expect(Ok().$isOkAnd(() => "")).toBe(false);
     });
   });
 
   describe("$isErr", () => {
-    test("Returns false", () => {
-      expect(Ok("test").$isErr()).toBe(false);
+    it("should return false", () => {
+      expect(Ok().$isErr()).toBe(false);
     });
   });
 
   describe("$isErrAnd", () => {
-    test("Returns false", () => {
-      const fn = vi.fn(() => true);
+    it("should not invoke the predicate/condition function", () => {
+      const fnCond = vi.fn(() => {});
 
-      expect(Ok("test").$isErrAnd(fn)).toBe(false);
-      expect(fn).not.toHaveBeenCalled();
+      Ok().$isErrAnd(fnCond);
+
+      expect(fnCond).not.toHaveBeenCalled();
+    });
+
+    it("should return false", () => {
+      expect(Ok().$isErrAnd(() => true)).toBe(false);
     });
   });
 
   describe("$expect", () => {
-    test("Returns the contained value", () => {
+    it("should return the contained value", () => {
       expect(Ok("test").$expect()).toBe("test");
     });
   });
 
   describe("$unwrap", () => {
-    test("Returns the contained value", () => {
+    it("should return the contained value", () => {
       expect(Ok("test").$unwrap()).toBe("test");
     });
   });
 
   describe("$unwrapErr", () => {
-    test("Throws RetupleUnwrapErrFailed", () => {
+    it("should throw RetupleUnwrapErrFailed", () => {
       expect(() => Ok().$unwrapErr()).toThrow(RetupleUnwrapErrFailed);
+    });
+
+    it("should include the contained value on the thrown RetupleUnwrapErrFailed", () => {
       expect(() => Ok("test").$unwrapErr()).toThrow(
-        expect.objectContaining({ value: "test" }),
+        expect.objectContaining({ value: "test" })
       );
     });
 
-    test("Uses the custom message if provided", () => {
+    it("should use the custom error message for the thrown RetupleUnwrapErrFailed when provided", () => {
       expect(() => Ok().$unwrapErr("Test error message")).toThrow(
-        "Test error message",
+        "Test error message"
       );
     });
   });
 
   describe("$unwrapOr", () => {
-    test("Returns the contained value", () => {
+    it("should return the contained value", () => {
       expect(Ok("test").$unwrapOr("default")).toBe("test");
     });
   });
 
   describe("$unwrapOrElse", () => {
-    test("Returns the contained value", () => {
-      const fn = vi.fn(() => "default");
+    it("should not invoke the default function", () => {
+      const fnDefault = vi.fn(() => {});
 
-      expect(Ok("test").$unwrapOrElse(fn)).toBe("test");
-      expect(fn).not.toHaveBeenCalled();
+      Ok().$unwrapOrElse(fnDefault);
+
+      expect(fnDefault).not.toHaveBeenCalled();
+    });
+
+    it("should return the contained value", () => {
+      expect(Ok("test").$unwrapOrElse(() => {})).toBe("test");
     });
   });
 
   describe("$map", () => {
-    test("Returns Ok containing the mapped value", () => {
-      const fn = vi.fn(() => "mapped");
+    it("should invoke the map function with the contained value", () => {
+      const fnMap = vi.fn(() => {});
 
-      expect(Ok("test").$map(fn).$unwrap()).toBe("mapped");
-      expect(fn).toHaveBeenCalledExactlyOnceWith("test");
+      Ok("test").$map(fnMap);
+
+      expect(fnMap).toHaveBeenCalledExactlyOnceWith("test");
     });
 
-    test("Throws the error when the function throws", () => {
+    it("should throw when the map function throws", () => {
       expect(capture(() => Ok().$map(fnThrow))).toBe(errThrow);
+    });
+
+    it("should return Ok containing the mapped value", () => {
+      expect(Ok().$map(() => "test")).toStrictEqual(Ok("test"));
     });
   });
 
   describe("$mapErr", () => {
-    test("Returns itself", () => {
-      const ok = Ok();
-      const fn = vi.fn(() => "mapped");
+    it("should not invoke the map error function", () => {
+      const fnMapErr = vi.fn(() => {});
 
-      expect(ok.$mapErr(fn)).toBe(ok);
-      expect(fn).not.toHaveBeenCalled();
+      Ok().$mapErr(fnMapErr);
+
+      expect(fnMapErr).not.toHaveBeenCalled();
+    });
+
+    it("should return Ok with the contained value", () => {
+      expect(Ok("test").$mapErr(() => {})).toStrictEqual(Ok("test"));
     });
   });
 
   describe("$mapOr", () => {
-    test("Returns Ok containing the mapped value", () => {
-      const fn = vi.fn(() => "mapped");
+    it("should invoke the map function with the contained value", () => {
+      const fnMap = vi.fn(() => {});
 
-      expect(Ok("test").$mapOr("default", fn).$unwrap()).toBe("mapped");
-      expect(fn).toHaveBeenCalledExactlyOnceWith("test");
+      Ok("test").$mapOr("default", fnMap);
+
+      expect(fnMap).toHaveBeenCalledExactlyOnceWith("test");
     });
 
-    test("Throws the error when the function throws", () => {
+    it("should throw when the map function throws", () => {
       expect(capture(() => Ok().$mapOr("default", fnThrow))).toBe(errThrow);
+    });
+
+    it("should return Ok containing the mapped value", () => {
+      expect(Ok().$mapOr("default", () => "mapped")).toStrictEqual(
+        Ok("mapped")
+      );
     });
   });
 
   describe("$mapOrElse", () => {
-    test("Returns Ok containing the mapped value", () => {
-      const fnDefault = vi.fn(() => "default");
-      const fnMap = vi.fn(() => "mapped");
+    it("should not invoke the default function", () => {
+      const fnDefault = vi.fn(() => {});
 
-      expect(Ok("test").$mapOrElse(fnDefault, fnMap).$unwrap()).toBe("mapped");
+      Ok().$mapOrElse(fnDefault, () => {});
+
       expect(fnDefault).not.toHaveBeenCalled();
+    });
+
+    it("should invoke the map function with the contained value", () => {
+      const fnMap = vi.fn(() => {});
+
+      Ok("test").$mapOrElse(() => {}, fnMap);
+
       expect(fnMap).toHaveBeenCalledExactlyOnceWith("test");
     });
 
-    test("Throws the error when the map function throws", () => {
+    it("should throw when the map function throws", () => {
       expect(capture(() => Ok().$mapOrElse(() => {}, fnThrow))).toBe(errThrow);
+    });
+
+    it("should return Ok containing the mapped value", () => {
+      expect(
+        Ok().$mapOrElse(
+          () => "default",
+          () => "mapped"
+        )
+      ).toStrictEqual(Ok("mapped"));
+    });
+  });
+
+  describe("$assertOr", () => {
+    it("should invoke the predicate/condition function with the contained value when provided", () => {
+      const fnCond = vi.fn(() => true);
+
+      Ok("test").$assertOr(Ok(), fnCond);
+
+      expect(fnCond).toHaveBeenCalledExactlyOnceWith("test");
+    });
+
+    it("should throw when the predicate/condition function throws", () => {
+      expect(capture(() => Ok().$assertOr(Ok(), fnThrow))).toBe(errThrow);
+    });
+
+    it("should return Ok with the contained value when the contained value is truthy, and when no predicate/condition function is provided", () => {
+      expect(Ok("test").$assertOr(Ok())).toStrictEqual(Ok("test"));
+    });
+
+    it("should return Ok with the contained value when the predicate/condition function returns a truthy value", () => {
+      expect(Ok("test").$assertOr(Ok(), () => true)).toStrictEqual(Ok("test"));
+      expect(Ok("test").$assertOr(Ok(), () => "truthy")).toStrictEqual(
+        Ok("test")
+      );
+    });
+
+    it("should return the default Result when the contained value is falsey, and when no predicate/condition function is provided", () => {
+      expect(Ok("").$assertOr(Ok("default"))).toStrictEqual(Ok("default"));
+    });
+
+    it("should return the default Result when the predicate/condition function returns a falsey value", () => {
+      expect(Ok("test").$assertOr(Ok("default"), () => false)).toStrictEqual(
+        Ok("default")
+      );
+
+      expect(Ok("test").$assertOr(Ok("default"), () => "")).toStrictEqual(
+        Ok("default")
+      );
+    });
+  });
+
+  describe("$assertOrElse", () => {
+    it("should invoke the default function with no arguments when the contained value is falsey, and when no predicate/condition function is provided", () => {
+      const fnDefault = vi.fn(() => Ok());
+
+      Ok("").$assertOrElse(fnDefault);
+
+      expect(fnDefault).toHaveBeenCalledExactlyOnceWith();
+    });
+
+    it("should invoke the default function with no arguments when the predicate/condition function returns false", () => {
+      const fnDefault = vi.fn(() => Ok());
+
+      Ok("test").$assertOrElse(fnDefault, () => false);
+
+      expect(fnDefault).toHaveBeenCalledExactlyOnceWith();
+    });
+
+    it("should invoke the default function with no arguments when the predicate/condition function returns a falsey value", () => {
+      const fnDefault = vi.fn(() => Ok());
+
+      Ok("test").$assertOrElse(fnDefault, () => "");
+
+      expect(fnDefault).toHaveBeenCalledExactlyOnceWith();
+    });
+
+    it("should throw when the default function throws", () => {
+      expect(capture(() => Ok().$assertOrElse(fnThrow, () => false))).toBe(
+        errThrow
+      );
+    });
+
+    it("should invoke the predicate/condition function with the contained value when provided", () => {
+      const fnCond = vi.fn(() => true);
+
+      Ok("test").$assertOrElse(() => Ok(), fnCond);
+
+      expect(fnCond).toHaveBeenCalledExactlyOnceWith("test");
+    });
+
+    it("should throw when the predicate/condition function throws", () => {
+      expect(capture(() => Ok().$assertOrElse(() => Ok(), fnThrow))).toBe(
+        errThrow
+      );
+    });
+
+    it("should return Ok with the contained value when the contained value is truthy, and when no predicate/condition function is provided", () => {
+      expect(Ok("test").$assertOrElse(() => Ok())).toStrictEqual(Ok("test"));
+    });
+
+    it("should return Ok with the contained value when the predicate/condition function returns a truthy value", () => {
+      expect(
+        Ok("test").$assertOrElse(
+          () => Ok(),
+          () => true
+        )
+      ).toStrictEqual(Ok("test"));
+
+      expect(
+        Ok("test").$assertOrElse(
+          () => Ok(),
+          () => "truthy"
+        )
+      ).toStrictEqual(Ok("test"));
+    });
+
+    it("should return the default Result when the contained value is falsey, and when no predicate/condition function is provided", () => {
+      expect(Ok("").$assertOrElse(() => Ok("default"))).toStrictEqual(
+        Ok("default")
+      );
+    });
+
+    it("should return the default Result when the predicate/condition function returns a falsey value", () => {
+      expect(
+        Ok("test").$assertOrElse(
+          () => Ok("default"),
+          () => false
+        )
+      ).toStrictEqual(Ok("default"));
+
+      expect(
+        Ok("test").$assertOrElse(
+          () => Ok("default"),
+          () => ""
+        )
+      ).toStrictEqual(Ok("default"));
     });
   });
 
   describe("$or", () => {
-    test("Returns itself", () => {
-      const ok = Ok();
-
-      expect(ok.$or(Ok())).toBe(ok);
+    it("should return Ok with the contained value", () => {
+      expect(Ok("test").$or(Err())).toStrictEqual(Ok("test"));
     });
   });
 
   describe("$orElse", () => {
-    test("Returns itself", () => {
-      const ok = Ok();
-      const fn = vi.fn(() => Ok());
+    it("should not invoke the or function", () => {
+      const fnOr = vi.fn(() => Err());
 
-      expect(ok.$orElse(fn)).toBe(ok);
-      expect(fn).not.toHaveBeenCalled();
+      Ok().$orElse(fnOr);
+
+      expect(fnOr).not.toHaveBeenCalled();
+    });
+
+    it("should return Ok with the contained value", () => {
+      expect(Ok("test").$orElse(() => Err())).toStrictEqual(Ok("test"));
     });
   });
 
   describe("$orSafe", () => {
-    test("Returns itself", () => {
-      const ok = Ok();
-      const fn = vi.fn(() => Ok());
+    it("should not invoke the safe function", () => {
+      const fnSafe = vi.fn(() => {});
 
-      expect(ok.$orSafe(fn)).toBe(ok);
-      expect(fn).not.toHaveBeenCalled();
+      Ok().$orSafe(fnSafe);
+
+      expect(fnSafe).not.toHaveBeenCalled();
+    });
+
+    it("should not invoke the map error function", () => {
+      const fnMapError = vi.fn(() => {});
+
+      Ok().$orSafe(fnThrow, fnMapError);
+
+      expect(fnMapError).not.toHaveBeenCalled();
+    });
+
+    it("should return Ok with the contained value", () => {
+      expect(Ok("test").$orSafe(() => {})).toStrictEqual(Ok("test"));
     });
   });
 
   describe("$and", () => {
-    test("Returns the Result", () => {
-      const result = Ok();
-
-      expect(Ok().$and(result)).toBe(result);
+    it("should return the and Result", () => {
+      expect(Ok().$and(Err("test"))).toStrictEqual(Err("test"));
     });
   });
 
   describe("$andThen", () => {
-    test("Returns the Result obtained by calling the function", () => {
-      const result = Ok();
-      const fn = vi.fn(() => result);
+    it("should invoke the and function with the contained value", () => {
+      const fnAnd = vi.fn(() => Err());
 
-      expect(Ok("test").$andThen(fn)).toBe(result);
-      expect(fn).toHaveBeenCalledExactlyOnceWith("test");
+      Ok("test").$andThen(fnAnd);
+
+      expect(fnAnd).toHaveBeenCalledExactlyOnceWith("test");
     });
 
-    test("Throws the error when the function throws", () => {
+    it("should throw when the and function throws", () => {
       expect(capture(() => Ok().$andThen(fnThrow))).toBe(errThrow);
+    });
+
+    it("should return the and Result", () => {
+      expect(Ok().$andThen(() => Err("test"))).toStrictEqual(Err("test"));
     });
   });
 
   describe("$andThrough", () => {
-    test("Returns itself if the function returns Ok", () => {
-      const ok = Ok("test");
-      const fn = vi.fn(() => Ok());
+    it("should invoke the through function with the contained value", () => {
+      const fnThrough = vi.fn(() => Ok());
 
-      expect(ok.$andThrough(fn)).toBe(ok);
-      expect(fn).toHaveBeenCalledExactlyOnceWith("test");
+      Ok("test").$andThrough(fnThrough);
+
+      expect(fnThrough).toHaveBeenCalledExactlyOnceWith("test");
     });
 
-    test("Returns the Err if the function returns Err", () => {
-      const err = Err();
-      const fn = vi.fn(() => err);
-
-      expect(Ok("test").$andThrough(fn)).toBe(err);
-      expect(fn).toHaveBeenCalledExactlyOnceWith("test");
-    });
-
-    test("Throws the error when the function throws", () => {
+    it("should throw when the through function throws", () => {
       expect(capture(() => Ok().$andThrough(fnThrow))).toBe(errThrow);
+    });
+
+    it("should return Ok with the contained value when the through function returns Ok", () => {
+      expect(Ok("test").$andThrough(() => Ok("through"))).toStrictEqual(
+        Ok("test")
+      );
+    });
+
+    it("should return the Err when the through function returns Err", () => {
+      expect(Ok("test").$andThrough(() => Err("through"))).toStrictEqual(
+        Err("through")
+      );
     });
   });
 
   describe("$andSafe", () => {
-    test("Returns Ok if the function does not throw", () => {
-      const fn = vi.fn(() => "value");
+    it("should invoke the safe function with the contained value", () => {
+      const fnSafe = vi.fn(() => "value");
 
-      expect(Ok("test").$andSafe(fn).$unwrap()).toBe("value");
-      expect(fn).toHaveBeenCalledExactlyOnceWith("test");
+      Ok("test").$andSafe(fnSafe);
+
+      expect(fnSafe).toHaveBeenCalledExactlyOnceWith("test");
     });
 
-    test("Returns Err if the function throws", () => {
-      const fn = vi.fn(() => {
-        throw errThrow;
-      });
+    it("should invoke the map error function with the thrown value when the safe function throws", () => {
+      const fnMapError = vi.fn(() => {});
 
-      expect(Ok("test").$andSafe(fn).$unwrapErr()).toBe(errThrow);
-      expect(fn).toHaveBeenCalledExactlyOnceWith("test");
+      Ok().$andSafe(fnThrow, fnMapError);
+
+      expect(fnMapError).toHaveBeenCalledExactlyOnceWith(errThrow);
     });
 
-    test("Replaces the error using the mapError function", () => {
-      const fn = vi.fn(() => "test");
-
-      expect(Ok().$andSafe(fnThrow, fn).$unwrapErr()).toBe("test");
-      expect(fn).toHaveBeenCalledExactlyOnceWith(errThrow);
+    it("should throw when the map error function throws", () => {
+      expect(
+        capture(() =>
+          Ok().$andSafe(() => {
+            throw new Error();
+          }, fnThrow)
+        )
+      ).toBe(errThrow);
     });
 
-    test("Replaces the error with RetupleThrownValueError if it is not an instance of Error, and if no mapError function is provided", () => {
-      const fnThrowNonError = () => {
-        throw "test";
-      };
-
-      expect(Ok().$andSafe(fnThrowNonError).$unwrapErr()).toBeInstanceOf(
-        RetupleThrownValueError,
-      );
-      expect(Ok().$andSafe(fnThrowNonError).$unwrapErr()).toStrictEqual(
-        expect.objectContaining({ value: "test" }),
-      );
+    it("should return Ok with the safe function return value", () => {
+      expect(Ok().$andSafe(() => "test")).toStrictEqual(Ok("test"));
     });
 
-    test("Throws the error when the mapError function throws", () => {
-      expect(capture(() => Ok().$andSafe(fnThrow, fnThrow))).toBe(errThrow);
+    it("should return Err with the thrown error when the safe function throws an instance of Error, and when no map error function is provided", () => {
+      expect(Ok().$andSafe(fnThrow)).toStrictEqual(Err(errThrow));
+    });
+
+    it("should map the error to RetupleThrownValueError when it is not an instance of Error, and when no map error function is provided", () => {
+      expect(
+        Ok().$andSafe(() => {
+          throw "test";
+        })
+      ).toStrictEqual(Err(new RetupleThrownValueError("test")));
+    });
+
+    it("should map the error with the map error function when provided", () => {
+      expect(Ok().$andSafe(fnThrow, () => "test")).toStrictEqual(Err("test"));
     });
   });
 
   describe("$peek", () => {
-    test("Returns itself after calling the function", () => {
-      const ok = Ok();
-      const fn = vi.fn(() => {});
+    it("should invoke the peek function with the current Result", () => {
+      let calledWithValue: any;
+      const fnPeek = vi.fn((value) => (calledWithValue = value));
 
-      expect(ok.$peek(fn)).toBe(ok);
-      expect(fn).toHaveBeenCalledExactlyOnceWith(ok);
+      Ok("test").$peek(fnPeek);
+
+      expect(fnPeek).toHaveBeenCalledTimes(1);
+      expect(calledWithValue).toStrictEqual(Ok("test"));
     });
 
-    test("Throws the error when the function throws", () => {
+    it("should throw when the peek function throws", () => {
       expect(capture(() => Ok().$peek(fnThrow))).toBe(errThrow);
+    });
+
+    it("should return Ok with the contained value", () => {
+      expect(Ok("test").$peek(() => {})).toStrictEqual(Ok("test"));
     });
   });
 
   describe("$tap", () => {
-    test("Returns itself after calling the function with the contained value", () => {
-      const ok = Ok("test");
-      const fn = vi.fn(() => {});
+    it("should invoke the tap function with the contained value", () => {
+      const fnTap = vi.fn(() => {});
 
-      expect(ok.$tap(fn)).toBe(ok);
-      expect(fn).toHaveBeenCalledExactlyOnceWith("test");
+      Ok("test").$tap(fnTap);
+
+      expect(fnTap).toHaveBeenCalledExactlyOnceWith("test");
     });
 
-    test("Throws the error when the function throws", () => {
+    it("should throw when the tap function throws", () => {
       expect(capture(() => Ok().$tap(fnThrow))).toBe(errThrow);
+    });
+
+    it("should return Ok with the contained value", () => {
+      expect(Ok("test").$tap(() => {})).toStrictEqual(Ok("test"));
     });
   });
 
   describe("$tapErr", () => {
-    test("Returns itself", () => {
-      const ok = Ok();
-      const fn = vi.fn(() => {});
+    it("should not invoke the tap error function", () => {
+      const fnTapErr = vi.fn(() => {});
 
-      expect(ok.$tapErr(fn)).toBe(ok);
-      expect(fn).not.toHaveBeenCalled();
+      Ok().$tapErr(fnTapErr);
+
+      expect(fnTapErr).not.toHaveBeenCalled();
+    });
+
+    it("should return Ok with the contained value", () => {
+      expect(Ok("test").$tapErr(() => {})).toStrictEqual(Ok("test"));
     });
   });
 
   describe("$flatten", () => {
-    test("Returns the contained value", () => {
-      const okInner = Ok("test");
-      const errInner = Err("test");
-
-      expect(Ok(okInner).$flatten()).toBe(okInner);
-      expect(Ok(errInner).$flatten()).toBe(errInner);
+    it("should return the contained Result", () => {
+      expect(Ok(Ok("test")).$flatten()).toStrictEqual(Ok("test"));
+      expect(Ok(Err("test")).$flatten()).toStrictEqual(Err("test"));
     });
   });
 
   describe("$async", () => {
-    test("Returns ResultAsync which resolves to this instance", async () => {
-      const ok = Ok();
-      const okAsync = ok.$async();
+    it("should return ResultAsync", async () => {
+      const prototype = Object.getPrototypeOf(safeAsync(() => {}));
 
-      expect(okAsync).toBeInstanceOf(ResultAsync);
-      await expect(okAsync).resolves.toBe(ok);
+      expect(prototype).toBeTypeOf("object");
+      expect(Ok().$async()).toBeInstanceOf(prototype.constructor);
+    });
+
+    it("should resolve to Ok with the contained value", async () => {
+      await expect(Ok("test").$async()).resolves.toStrictEqual(Ok("test"));
     });
   });
 
   describe("$promise", () => {
-    test("Returns a promise which resolves to this instance", async () => {
-      const ok = Ok();
-      const okPromise = ok.$promise();
+    it("should return a Promise", () => {
+      expect(Ok().$promise()).toBeInstanceOf(Promise);
+    });
 
-      expect(okPromise).toBeInstanceOf(Promise);
-      await expect(okPromise).resolves.toBe(ok);
+    it("should resolve to Ok with the contained value", async () => {
+      await expect(Ok("test").$promise()).resolves.toStrictEqual(Ok("test"));
     });
   });
 });
