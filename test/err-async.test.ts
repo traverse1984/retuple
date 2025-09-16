@@ -595,7 +595,10 @@ describe("ResultAsync (Err)", () => {
     it("should be an empty iterator", async () => {
       const iterator = await Err([1, 2, 3]).$async().$iter();
 
-      expect(iterator.next()).toStrictEqual({ value: undefined, done: true });
+      expect(iterator.next()).toStrictEqual({
+        value: undefined,
+        done: true,
+      });
     });
   });
 });

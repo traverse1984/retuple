@@ -524,7 +524,10 @@ describe("Err", () => {
     it("should be an empty iterator", () => {
       const iterator = Err([1, 2, 3]).$iter();
 
-      expect(iterator.next()).toStrictEqual({ value: undefined, done: true });
+      expect(iterator.next()).toStrictEqual({
+        value: undefined,
+        done: true,
+      });
     });
   });
 });
