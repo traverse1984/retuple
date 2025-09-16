@@ -96,17 +96,17 @@ describe("Module", () => {
       expect(Object.isFrozen(rt.Result)).toBe(true);
     });
 
-    it("should include the modules function exports", () => {
+    it("should include the function exports from the module", () => {
       expect(rt.Result).toStrictEqual(
         expect.objectContaining({
           Ok: rt.Ok,
           Err: rt.Err,
-          nonNullable: rt.nonNullable,
-          truthy: rt.truthy,
-          safe: rt.safe,
-          safeAsync: rt.safeAsync,
-          safePromise: rt.safePromise,
-        })
+          $nonNullable: rt.nonNullable,
+          $truthy: rt.truthy,
+          $safe: rt.safe,
+          $safeAsync: rt.safeAsync,
+          $safePromise: rt.safePromise,
+        }),
       );
     });
   });

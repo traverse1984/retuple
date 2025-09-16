@@ -40,25 +40,6 @@ describe("Err", () => {
     expect(JSON.stringify(Err({ a: 1, b: 2 }))).toBe(JSON.stringify(null));
   });
 
-  describe("$toNativeTuple", () => {
-    it("should return an equivalent tuple which is not an Err instance", () => {
-      expect(Err("test").$toNativeTuple()).not.toStrictEqual(Err("test"));
-      expect(Err("test").$toNativeTuple()).toStrictEqual([...Err("test")]);
-    });
-  });
-
-  describe("$value", () => {
-    it("should return the contained value", () => {
-      expect(Err("test").$value()).toBe("test");
-    });
-  });
-
-  describe("$ok", () => {
-    it("should return undefined", () => {
-      expect(Err("test").$ok()).toBe(undefined);
-    });
-  });
-
   describe("$isOk", () => {
     it("should return false", () => {
       expect(Err().$isOk()).toBe(false);
@@ -101,7 +82,7 @@ describe("Err", () => {
     it("should return true when the predicate/condition function returns a truthy value", () => {
       expect(Err("test").$isErrAnd((val) => val === "test")).toBe(true);
       expect(Err<string>("test").$isErrAnd((val) => val !== "test")).toBe(
-        false
+        false,
       );
 
       expect(Err().$isErrAnd(() => "truthy")).toBe(true);
@@ -110,7 +91,7 @@ describe("Err", () => {
 
     it("should return false when the predicate/condition function returns a falsey value", () => {
       expect(Err<string>("test").$isErrAnd((val) => val !== "test")).toBe(
-        false
+        false,
       );
       expect(Err().$isErrAnd(() => "")).toBe(false);
     });
@@ -127,7 +108,7 @@ describe("Err", () => {
 
     it("should include the contained value on the thrown RetupleExpectFailed", () => {
       expect(() => Err<any>("test").$expect()).toThrow(
-        expect.objectContaining({ value: "test" })
+        expect.objectContaining({ value: "test" }),
       );
     });
   });
@@ -139,7 +120,7 @@ describe("Err", () => {
 
     it("should include the contained value on the thrown RetupleUnwrapFailed", () => {
       expect(() => Err("test").$unwrap()).toThrow(
-        expect.objectContaining({ value: "test" })
+        expect.objectContaining({ value: "test" }),
       );
     });
 
@@ -147,13 +128,13 @@ describe("Err", () => {
       expect(() => Err(errThrow).$unwrap()).toThrow(
         expect.objectContaining({
           cause: errThrow,
-        })
+        }),
       );
     });
 
     it("should use the custom error message for the thrown RetupleUnwrapFailed when provided", () => {
       expect(() => Err().$unwrap("Test error message")).toThrow(
-        "Test error message"
+        "Test error message",
       );
     });
   });
@@ -231,7 +212,7 @@ describe("Err", () => {
 
     it("should return Ok containing the default value", () => {
       expect(Err().$mapOr("default", () => "mapped")).toStrictEqual(
-        Ok("default")
+        Ok("default"),
       );
     });
   });
@@ -261,8 +242,8 @@ describe("Err", () => {
       expect(
         Err().$mapOrElse(
           () => "default",
-          () => "mapped"
-        )
+          () => "mapped",
+        ),
       ).toStrictEqual(Ok("default"));
     });
   });
@@ -278,7 +259,7 @@ describe("Err", () => {
 
     it("should return Err with the contained value", () => {
       expect(Err("test").$assertOr(Ok(), () => true)).toStrictEqual(
-        Err("test")
+        Err("test"),
       );
     });
   });
@@ -304,8 +285,8 @@ describe("Err", () => {
       expect(
         Err("test").$assertOrElse(
           () => Ok(),
-          () => true
-        )
+          () => true,
+        ),
       ).toStrictEqual(Err("test"));
     });
   });
@@ -356,8 +337,8 @@ describe("Err", () => {
         capture(() =>
           Err().$orSafe(() => {
             throw new Error();
-          }, fnThrow)
-        )
+          }, fnThrow),
+        ),
       ).toBe(errThrow);
     });
 
@@ -373,7 +354,7 @@ describe("Err", () => {
       expect(
         Err().$orSafe(() => {
           throw "test";
-        })
+        }),
       ).toStrictEqual(Err(new RetupleThrownValueError("test")));
     });
 
@@ -437,8 +418,8 @@ describe("Err", () => {
       expect(
         Err("test").$andSafe(
           () => Ok(),
-          () => "mapped"
-        )
+          () => "mapped",
+        ),
       ).toStrictEqual(Err("test"));
     });
   });
@@ -521,6 +502,29 @@ describe("Err", () => {
 
     it("should resolve to Err with the contained value", async () => {
       await expect(Err("test").$promise()).resolves.toStrictEqual(Err("test"));
+    });
+  });
+
+  describe("$tuple", () => {
+    it("should return an equivalent tuple which is not an Err instance", () => {
+      expect(Err("test").$tuple()).not.toStrictEqual(Err("test"));
+      expect(Err("test").$tuple()).toStrictEqual([...Err("test")]);
+    });
+  });
+
+  describe("$iter", () => {
+    it("should return an iterator", () => {
+      const iterator = Err([]).$iter();
+
+      expect(iterator).toHaveProperty("next");
+      expect(iterator.next).toBeTypeOf("function");
+      expect(iterator[Symbol.iterator]).toBeDefined();
+    });
+
+    it("should be an empty iterator", () => {
+      const iterator = Err([1, 2, 3]).$iter();
+
+      expect(iterator.next()).toStrictEqual({ value: undefined, done: true });
     });
   });
 });

@@ -10,30 +10,6 @@ import {
 } from "../src/index.js";
 
 describe("ResultAsync (Err)", () => {
-  describe("$toNativeTuple", () => {
-    it("should resolve to an equivalent tuple which is not an Err instance", async () => {
-      await expect(
-        Err("test").$async().$toNativeTuple()
-      ).resolves.not.toStrictEqual(Err("test"));
-
-      await expect(
-        Err("test").$async().$toNativeTuple()
-      ).resolves.toStrictEqual([...Err("test")]);
-    });
-  });
-
-  describe("$value", () => {
-    it("should resolve to the contained value", async () => {
-      await expect(Err("test").$async().$value()).resolves.toBe("test");
-    });
-  });
-
-  describe("$ok", () => {
-    it("should resolve to undefined", async () => {
-      await expect(Err("test").$async().$ok()).resolves.toBe(undefined);
-    });
-  });
-
   describe("$expect", () => {
     it("should reject with the contained value when it is an instance of Error", async () => {
       await expect(Err(errReject).$async().$expect()).rejects.toBe(errReject);
@@ -41,13 +17,13 @@ describe("ResultAsync (Err)", () => {
 
     it("should reject with RetupleExpectFailed when the contained value is not an instance of Error", async () => {
       await expect(Err<any>("test").$async().$expect()).rejects.toThrow(
-        RetupleExpectFailed
+        RetupleExpectFailed,
       );
     });
 
     it("should include the contained value on the thrown RetupleExpectFailed", async () => {
       await expect(Err<any>("test").$async().$expect()).rejects.toThrow(
-        expect.objectContaining({ value: "test" })
+        expect.objectContaining({ value: "test" }),
       );
     });
   });
@@ -55,13 +31,13 @@ describe("ResultAsync (Err)", () => {
   describe("$unwrap", () => {
     it("should reject with RetupleUnwrapFailed", async () => {
       await expect(Err("test").$async().$unwrap()).rejects.toThrow(
-        RetupleUnwrapFailed
+        RetupleUnwrapFailed,
       );
     });
 
     it("should include the contained value on the reject RetupleUnwrapFailed", async () => {
       await expect(Err("test").$async().$unwrap()).rejects.toThrow(
-        expect.objectContaining({ value: "test" })
+        expect.objectContaining({ value: "test" }),
       );
     });
 
@@ -69,13 +45,13 @@ describe("ResultAsync (Err)", () => {
       await expect(Err(errThrow).$async().$unwrap()).rejects.toThrow(
         expect.objectContaining({
           cause: errThrow,
-        })
+        }),
       );
     });
 
     it("should use the custom error message for the rejected RetupleUnwrapFailed when provided", async () => {
       await expect(
-        Err().$async().$unwrap("Test error message")
+        Err().$async().$unwrap("Test error message"),
       ).rejects.toThrow("Test error message");
     });
   });
@@ -89,7 +65,7 @@ describe("ResultAsync (Err)", () => {
   describe("$unwrapOr", () => {
     it("should resolve to the default value", async () => {
       await expect(Err("test").$async().$unwrapOr("default")).resolves.toBe(
-        "default"
+        "default",
       );
     });
   });
@@ -105,7 +81,7 @@ describe("ResultAsync (Err)", () => {
 
     it("should reject with the error when the default function throws", async () => {
       await expect(Err().$async().$unwrapOrElse(fnThrow)).rejects.toBe(
-        errThrow
+        errThrow,
       );
     });
 
@@ -113,7 +89,7 @@ describe("ResultAsync (Err)", () => {
       await expect(
         Err()
           .$async()
-          .$unwrapOrElse(() => "default")
+          .$unwrapOrElse(() => "default"),
       ).resolves.toBe("default");
     });
   });
@@ -131,7 +107,7 @@ describe("ResultAsync (Err)", () => {
       await expect(
         Err("test")
           .$async()
-          .$map(() => "mapped")
+          .$map(() => "mapped"),
       ).resolves.toStrictEqual(Err("test"));
     });
   });
@@ -154,7 +130,7 @@ describe("ResultAsync (Err)", () => {
         Err("test")
           .$async()
           .$mapErr(() => "mapped")
-          .$unwrapErr()
+          .$unwrapErr(),
       ).resolves.toBe("mapped");
     });
   });
@@ -173,7 +149,7 @@ describe("ResultAsync (Err)", () => {
         Err("test")
           .$async()
           .$mapOr("default", () => "mapped")
-          .$unwrap()
+          .$unwrap(),
       ).resolves.toBe("default");
     });
   });
@@ -194,7 +170,7 @@ describe("ResultAsync (Err)", () => {
         await expect(
           Err()
             .$async()
-            .$mapOrElse(fnThrow, () => {})
+            .$mapOrElse(fnThrow, () => {}),
         ).rejects.toBe(errThrow);
       });
 
@@ -214,9 +190,9 @@ describe("ResultAsync (Err)", () => {
             .$async()
             .$mapOrElse(
               () => "default",
-              () => "mapped"
+              () => "mapped",
             )
-            .$unwrap()
+            .$unwrap(),
         ).resolves.toBe("default");
       });
     });
@@ -237,14 +213,14 @@ describe("ResultAsync (Err)", () => {
       await expect(
         Err("test")
           .$async()
-          .$assertOr(rejected, () => true)
+          .$assertOr(rejected, () => true),
       ).resolves.toStrictEqual(Err("test"));
       await rejected.catch(() => {});
     });
 
     it("should resolve to Err with the contained value", async () => {
       await expect(Err("test").$async().$assertOr(Ok())).resolves.toStrictEqual(
-        Err("test")
+        Err("test"),
       );
     });
   });
@@ -274,7 +250,7 @@ describe("ResultAsync (Err)", () => {
       await expect(
         Err("test")
           .$async()
-          .$assertOr(rejected, () => true)
+          .$assertOr(rejected, () => true),
       ).resolves.toStrictEqual(Err("test"));
 
       await rejected.catch(() => {});
@@ -286,8 +262,8 @@ describe("ResultAsync (Err)", () => {
           .$async()
           .$assertOrElse(
             () => Ok(),
-            () => true
-          )
+            () => true,
+          ),
       ).resolves.toStrictEqual(Err("test"));
     });
   });
@@ -299,17 +275,17 @@ describe("ResultAsync (Err)", () => {
 
     it("should resolve to the or Result", async () => {
       await expect(Err().$async().$or(Ok("test"))).resolves.toStrictEqual(
-        Ok("test")
+        Ok("test"),
       );
 
       await expect(
-        Err().$async().$or(Ok("test").$async())
+        Err().$async().$or(Ok("test").$async()),
       ).resolves.toStrictEqual(Ok("test"));
 
       await expect(
         Err()
           .$async()
-          .$or(Promise.resolve(Ok("test")))
+          .$or(Promise.resolve(Ok("test"))),
       ).resolves.toStrictEqual(Ok("test"));
     });
   });
@@ -335,13 +311,13 @@ describe("ResultAsync (Err)", () => {
       await expect(
         Err()
           .$async()
-          .$orElse(() => Ok("test"))
+          .$orElse(() => Ok("test")),
       ).resolves.toStrictEqual(Ok("test"));
 
       await expect(
         Err()
           .$async()
-          .$orElse(() => Ok("test"))
+          .$orElse(() => Ok("test")),
       ).resolves.toStrictEqual(Ok("test"));
     });
   });
@@ -373,7 +349,7 @@ describe("ResultAsync (Err)", () => {
 
     it("should reject when the map error function throws", async () => {
       await expect(Err().$async().$orSafe(fnReject, fnThrow)).rejects.toBe(
-        errThrow
+        errThrow,
       );
     });
 
@@ -381,23 +357,23 @@ describe("ResultAsync (Err)", () => {
       await expect(
         Err()
           .$async()
-          .$orSafe(() => "test")
+          .$orSafe(() => "test"),
       ).resolves.toStrictEqual(Ok("test"));
 
       await expect(
         Err()
           .$async()
-          .$orSafe(async () => "test")
+          .$orSafe(async () => "test"),
       ).resolves.toStrictEqual(Ok("test"));
     });
 
     it("should resolve to Err with the thrown/rejected error when the safe function throws or rejects", async () => {
       await expect(
-        Err("test").$async().$orSafe(fnThrow)
+        Err("test").$async().$orSafe(fnThrow),
       ).resolves.toStrictEqual(Err(errThrow));
 
       await expect(
-        Err("test").$async().$orSafe(fnReject)
+        Err("test").$async().$orSafe(fnReject),
       ).resolves.toStrictEqual(Err(errReject));
     });
 
@@ -407,7 +383,7 @@ describe("ResultAsync (Err)", () => {
           .$async()
           .$orSafe(() => {
             throw "test";
-          })
+          }),
       ).resolves.toStrictEqual(Err(new RetupleThrownValueError("test")));
 
       await expect(
@@ -415,7 +391,7 @@ describe("ResultAsync (Err)", () => {
           .$async()
           .$orSafe(async () => {
             throw "test";
-          })
+          }),
       ).resolves.toStrictEqual(Err(new RetupleThrownValueError("test")));
     });
 
@@ -423,13 +399,13 @@ describe("ResultAsync (Err)", () => {
       await expect(
         Err()
           .$async()
-          .$orSafe(fnThrow, () => "test")
+          .$orSafe(fnThrow, () => "test"),
       ).resolves.toStrictEqual(Err("test"));
 
       await expect(
         Err()
           .$async()
-          .$orSafe(fnReject, () => "test")
+          .$orSafe(fnReject, () => "test"),
       ).resolves.toStrictEqual(Err("test"));
     });
   });
@@ -439,7 +415,7 @@ describe("ResultAsync (Err)", () => {
       const rejected = fnReject();
 
       await expect(Err("test").$async().$and(rejected)).resolves.toStrictEqual(
-        Err("test")
+        Err("test"),
       );
 
       await rejected.catch(() => {});
@@ -447,7 +423,7 @@ describe("ResultAsync (Err)", () => {
 
     it("should return Err with the contained value", async () => {
       await expect(Err("test").$async().$and(Ok())).resolves.toStrictEqual(
-        Err("test")
+        Err("test"),
       );
     });
   });
@@ -463,7 +439,7 @@ describe("ResultAsync (Err)", () => {
 
     it("should return Err with the contained value", async () => {
       await expect(Err("test").$async().$and(Ok())).resolves.toStrictEqual(
-        Err("test")
+        Err("test"),
       );
     });
   });
@@ -479,7 +455,7 @@ describe("ResultAsync (Err)", () => {
 
     it("should return Err with the contained value", async () => {
       await expect(Err("test").$async().$and(Ok())).resolves.toStrictEqual(
-        Err("test")
+        Err("test"),
       );
     });
   });
@@ -506,7 +482,7 @@ describe("ResultAsync (Err)", () => {
       await expect(
         Err("test")
           .$async()
-          .$andSafe(() => {})
+          .$andSafe(() => {}),
       ).resolves.toStrictEqual(Err("test"));
     });
   });
@@ -534,7 +510,7 @@ describe("ResultAsync (Err)", () => {
       await expect(
         Err("test")
           .$async()
-          .$peek(() => {})
+          .$peek(() => {}),
       ).resolves.toStrictEqual(Err("test"));
     });
   });
@@ -552,7 +528,7 @@ describe("ResultAsync (Err)", () => {
       await expect(
         Ok("test")
           .$async()
-          .$tap(() => {})
+          .$tap(() => {}),
       ).resolves.toStrictEqual(Ok("test"));
     });
   });
@@ -578,7 +554,7 @@ describe("ResultAsync (Err)", () => {
       await expect(
         Err("test")
           .$async()
-          .$tapErr(() => {})
+          .$tapErr(() => {}),
       ).resolves.toStrictEqual(Err("test"));
     });
   });
@@ -590,8 +566,36 @@ describe("ResultAsync (Err)", () => {
 
     it("should resolve to Err with the contained value", async () => {
       await expect(Err("test").$async().$promise()).resolves.toStrictEqual(
-        Err("test")
+        Err("test"),
       );
+    });
+  });
+
+  describe("$tuple", () => {
+    it("should resolve to an equivalent tuple which is not an Err instance", async () => {
+      await expect(Err("test").$async().$tuple()).resolves.not.toStrictEqual(
+        Err("test"),
+      );
+
+      await expect(Err("test").$async().$tuple()).resolves.toStrictEqual([
+        ...Err("test"),
+      ]);
+    });
+  });
+
+  describe("$iter", () => {
+    it("should return an iterator", async () => {
+      const iterator = await Err([]).$async().$iter();
+
+      expect(iterator).toHaveProperty("next");
+      expect(iterator.next).toBeTypeOf("function");
+      expect(iterator[Symbol.iterator]).toBeDefined();
+    });
+
+    it("should be an empty iterator", async () => {
+      const iterator = await Err([1, 2, 3]).$async().$iter();
+
+      expect(iterator.next()).toStrictEqual({ value: undefined, done: true });
     });
   });
 });
