@@ -1,6 +1,6 @@
 {
   "name": "retuple",
-  "version": "1.0.0-next.5",
+  "version": "1.0.0-next.7",
   "scripts": {
     "test": "vitest",
     "lint": "eslint . --ext .ts -c eslint.config.mjs --fix",
@@ -22,7 +22,7 @@
   ],
   "author": "Matthew Wilson",
   "license": "MIT",
-  "description": "A strongly typed errors as values library built around tuples.",
+  "description": "A Result type built around tuples. Treat errors as values, and make exceptions exceptional.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/traverse1984/retuple.git"
