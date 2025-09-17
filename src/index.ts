@@ -86,6 +86,23 @@ export class RetupleInvalidResultError extends Error {
 }
 
 /**
+ * ## Retuple Invalid Union Error
+ *
+ * This error is thrown when attempting to construct a `Result` from a
+ * discriminated union, when the 'success' property is not boolean. In this
+ * case, it is impossible to determine whether the result should be `Ok` or
+ * `Err`.
+ */
+export class RetupleInvalidUnionError extends Error {
+  constructor(public value: unknown) {
+    super(
+      "Constructing a Result from discriminated union failed, the success " +
+        "property must be boolean",
+    );
+  }
+}
+
+/**
  * ## Retuple Array Method Unavailable Error
  *
  * This error is thrown when calling a built-in array method from a `Result`.
@@ -140,6 +157,7 @@ Result.Err = Err;
 Result.$resolve = resolve;
 Result.$nonNullable = nonNullable;
 Result.$truthy = truthy;
+Result.$union = union;
 Result.$safe = safe;
 Result.$safeAsync = safeAsync;
 Result.$safePromise = safePromise;
@@ -325,6 +343,23 @@ function truthy<T, E>(
   }
 
   return Err(error());
+}
+
+function union<U extends ObjectUnionOk<any> | ObjectUnionErr<any>>(
+  union: U,
+): Result<
+  U extends ObjectUnionOk<infer T> ? T : never,
+  U extends ObjectUnionErr<infer E> ? E : never
+> {
+  if (union.success === true) {
+    return Ok(union.data);
+  }
+
+  if (union.success === false) {
+    return Err(union.error);
+  }
+
+  throw new RetupleInvalidUnionError(union);
 }
 
 /**
@@ -1927,6 +1962,9 @@ type ErrTuple<E> = [err: E, value: undefined];
 
 type ThisOk<T> = OkTuple<T> & Retuple<T, never>;
 type ThisErr<E> = ErrTuple<E> & Retuple<never, E>;
+
+type ObjectUnionOk<T> = { success: true; data: T; error?: never | undefined };
+type ObjectUnionErr<E> = { success: false; data?: never | undefined; error: E };
 
 type RetupleAwaitable<T, E> = Retuple<T, E> | PromiseLike<Retuple<T, E>>;
 

@@ -7,6 +7,7 @@ import {
   Err,
   RetupleThrownValueError,
   RetupleInvalidResultError,
+  RetupleInvalidUnionError,
 } from "../src/index.js";
 
 describe("Result", () => {
@@ -173,6 +174,32 @@ describe("Result", () => {
     it("should return Err with the error value when the from value is falsey, and the error function is provided", () => {
       expect(Result.$truthy(undefined, () => "test")).toStrictEqual(
         Err("test"),
+      );
+    });
+  });
+
+  describe("$union", () => {
+    it("should return Ok with the data value when the success property is true", () => {
+      expect(Result.$union({ success: true, data: "test" })).toStrictEqual(
+        Ok("test"),
+      );
+    });
+
+    it("should return Err with the error value when the success property is false", () => {
+      expect(Result.$union({ success: false, error: "test" })).toStrictEqual(
+        Err("test"),
+      );
+    });
+
+    it("should throw RetupleInvalidUnionError when the success property is not boolean", () => {
+      const invalid = {
+        success: "invalid",
+        data: "data",
+        error: "error",
+      };
+
+      expect(capture(() => Result.$union(invalid as any))).toStrictEqual(
+        new RetupleInvalidUnionError(invalid),
       );
     });
   });
