@@ -56,6 +56,16 @@ describe("Module", () => {
       });
     });
 
+    describe("RetupleInvalidUnionError", () => {
+      it("should be exported", () => {
+        expect(rt.RetupleInvalidUnionError).toBeTypeOf("function");
+      });
+
+      it("should extend Error", () => {
+        expect(rt.RetupleInvalidUnionError.prototype).toBeInstanceOf(Error);
+      });
+    });
+
     describe("RetupleInvalidResultError", () => {
       it("should be exported", () => {
         expect(rt.RetupleInvalidResultError).toBeTypeOf("function");
@@ -63,6 +73,28 @@ describe("Module", () => {
 
       it("should extend Error", () => {
         expect(rt.RetupleInvalidResultError.prototype).toBeInstanceOf(Error);
+      });
+    });
+
+    describe("RetupleFlattenFailed", () => {
+      it("should be exported", () => {
+        expect(rt.RetupleFlattenFailed).toBeTypeOf("function");
+      });
+
+      it("should extend Error", () => {
+        expect(rt.RetupleFlattenFailed.prototype).toBeInstanceOf(Error);
+      });
+    });
+
+    describe("RetupleArrayMethodUnavailableError", () => {
+      it("should be exported", () => {
+        expect(rt.RetupleArrayMethodUnavailableError).toBeTypeOf("function");
+      });
+
+      it("should extend Error", () => {
+        expect(rt.RetupleArrayMethodUnavailableError.prototype).toBeInstanceOf(
+          Error,
+        );
       });
     });
   });
@@ -76,24 +108,32 @@ describe("Module", () => {
       expect(Object.isFrozen(rt.Result)).toBe(true);
     });
 
-    it("should include the nonNullable function", () => {
+    it("should include the $nonNullable function", () => {
       expect(rt.Result.$nonNullable).toBeTypeOf("function");
     });
 
-    it("should include the truthy function", () => {
+    it("should include the $truthy function", () => {
       expect(rt.Result.$truthy).toBeTypeOf("function");
     });
 
-    it("should include the safe function", () => {
+    it("should include the $safe function", () => {
       expect(rt.Result.$safe).toBeTypeOf("function");
     });
 
-    it("should include the safeAsync function", () => {
+    it("should include the $safeAsync function", () => {
       expect(rt.Result.$safeAsync).toBeTypeOf("function");
     });
 
-    it("should include the safePromise function", () => {
+    it("should include the $safePromise function", () => {
       expect(rt.Result.$safePromise).toBeTypeOf("function");
+    });
+
+    it("should include the $retry function", () => {
+      expect(rt.Result.$retry).toBeTypeOf("function");
+    });
+
+    it("should include the $safeRetry function", () => {
+      expect(rt.Result.$safeRetry).toBeTypeOf("function");
     });
   });
 });

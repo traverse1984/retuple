@@ -1,4 +1,5 @@
 import { vi, describe, it, expect } from "vitest";
+
 import { capture, errThrow, fnThrow } from "./util.js";
 
 import {
@@ -486,7 +487,6 @@ describe("Err", () => {
     it("should return ResultAsync", async () => {
       const prototype = Object.getPrototypeOf(Result.$safeAsync(() => {}));
 
-      expect(prototype).toBeTypeOf("object");
       expect(Err().$async()).toBeInstanceOf(prototype.constructor);
     });
 

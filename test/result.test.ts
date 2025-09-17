@@ -1,4 +1,5 @@
 import { vi, describe, it, expect } from "vitest";
+
 import { capture, errThrow, errReject, fnThrow, fnReject } from "./util.js";
 
 import {
@@ -353,6 +354,88 @@ describe("Result", () => {
     it("should map the error with the map error function when provided", async () => {
       await expect(
         Result.$safePromise(fnReject(), () => "test"),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+  });
+
+  describe("$safeRetry", () => {
+    it("should invoke the safe function with no arguments", async () => {
+      const fnSafe = vi.fn(() => {});
+
+      await Result.$safeRetry(fnSafe);
+
+      expect(fnSafe).toHaveBeenCalledExactlyOnceWith();
+    });
+
+    it("should invoke the map error function with the thrown value when the safe function throws", async () => {
+      const fnMapError = vi.fn(() => {});
+
+      await Result.$safeRetry(fnThrow, fnMapError);
+
+      expect(fnMapError).toHaveBeenCalledExactlyOnceWith(errThrow);
+    });
+
+    it("should invoke the map error function with the reject value when the safe function rejects", async () => {
+      const fnMapError = vi.fn(() => {});
+
+      await Result.$safeRetry(fnReject, fnMapError);
+
+      expect(fnMapError).toHaveBeenCalledExactlyOnceWith(errReject);
+    });
+
+    it("should reject when the map error function throws", async () => {
+      await expect(Result.$safeRetry(fnReject, fnThrow)).rejects.toBe(errThrow);
+    });
+
+    it("should return ResultRetry", () => {
+      const prototype = Object.getPrototypeOf(Result.$retry(() => Ok("test")));
+
+      expect(Result.$safeRetry(() => "test")).toBeInstanceOf(
+        prototype.constructor,
+      );
+    });
+
+    it("should resolve to Ok with the safe value", async () => {
+      await expect(Result.$safeRetry(() => "test")).resolves.toStrictEqual(
+        Ok("test"),
+      );
+
+      await expect(
+        Result.$safeRetry(async () => "test"),
+      ).resolves.toStrictEqual(Ok("test"));
+    });
+
+    it("should resolve to Err with the thrown/rejected error when the safe function throws or rejects", async () => {
+      await expect(Result.$safeRetry(fnThrow)).resolves.toStrictEqual(
+        Err(errThrow),
+      );
+
+      await expect(Result.$safeRetry(fnReject)).resolves.toStrictEqual(
+        Err(errReject),
+      );
+    });
+
+    it("should map the error to RetupleThrownValueError when it is not an instance of Error, and when no map error function is provided", async () => {
+      await expect(
+        Result.$safeRetry(() => {
+          throw "test";
+        }),
+      ).resolves.toStrictEqual(Err(new RetupleThrownValueError("test")));
+
+      await expect(
+        Result.$safeRetry(async () => {
+          throw "test";
+        }),
+      ).resolves.toStrictEqual(Err(new RetupleThrownValueError("test")));
+    });
+
+    it("should map the error using the map error function when provided", async () => {
+      await expect(
+        Result.$safeRetry(fnThrow, () => "test"),
+      ).resolves.toStrictEqual(Err("test"));
+
+      await expect(
+        Result.$safeRetry(fnReject, () => "test"),
       ).resolves.toStrictEqual(Err("test"));
     });
   });

@@ -161,6 +161,8 @@ Result.$union = union;
 Result.$safe = safe;
 Result.$safeAsync = safeAsync;
 Result.$safePromise = safePromise;
+Result.$retry = retry;
+Result.$safeRetry = safeRetry;
 
 Object.freeze(Result);
 
@@ -214,6 +216,9 @@ export function Err<const E>(err?: E): ThisErr<E | void> {
   return new ResultErr<never, E | void>(err) as any;
 }
 
+/**
+ * @TODO
+ */
 function resolve<T, E>(
   result: Retuple<T, E> | PromiseLike<Retuple<T, E>>,
 ): ResultAsync<T, E> {
@@ -345,6 +350,9 @@ function truthy<T, E>(
   return Err(error());
 }
 
+/**
+ * @TODO
+ */
 function union<U extends ObjectUnionOk<any> | ObjectUnionErr<any>>(
   union: U,
 ): Result<
@@ -601,6 +609,36 @@ function safePromise<T, E>(
   return new ResultAsync<T, E>(
     promise.then(Ok<T>, async (err) => Err(await mapError(err))),
   );
+}
+
+/**
+ * @TODO
+ */
+function retry<T, E>(
+  f: () => Retuple<T, E> | PromiseLike<Retuple<T, E>>,
+): ResultRetry<T, E> {
+  return new ResultRetry(f);
+}
+
+/**
+ * @TODO
+ */
+function safeRetry<T>(f: () => T | PromiseLike<T>): ResultRetry<T, Error>;
+function safeRetry<T, E>(
+  f: () => T | PromiseLike<T>,
+  mapError: (err: unknown) => E,
+): ResultRetry<T, E>;
+function safeRetry<T, E = Error>(
+  f: () => T | PromiseLike<T>,
+  mapError: (err: unknown) => E = ensureError,
+): ResultRetry<T, E> {
+  return new ResultRetry(async () => {
+    try {
+      return Ok(await f());
+    } catch (err) {
+      return Err(mapError(err));
+    }
+  });
 }
 
 /**
@@ -1939,6 +1977,157 @@ class ResultAsync<T, E> {
   }
 }
 
+interface ResultRetryMonitor<E> {
+  error: E;
+  attempt: number;
+  abort: () => void;
+}
+
+/**
+ * @TODO
+ */
+class ResultRetry<T, E> implements PromiseLike<Result<T, E>> {
+  private static MAX_TIMEOUT = 3_600_000 as const;
+  private static MAX_RETRY = 100 as const;
+
+  private static zero(): 0 {
+    return 0;
+  }
+
+  private static delay(ms: number): Promise<void> {
+    return new Promise((resolve) =>
+      setTimeout(resolve, Math.min(ms, ResultRetry.MAX_TIMEOUT)),
+    );
+  }
+
+  private static integer(value: number): number {
+    if (typeof value === "number" && Number.isInteger(value)) {
+      return Math.max(0, value);
+    }
+
+    return 0;
+  }
+
+  #f: () => Result<T, E> | PromiseLike<Result<T, E>>;
+  #promise: Promise<Result<T, E>>;
+
+  #times = 1;
+  #attempt = 0;
+  #aborted = false;
+  #abort = () => (this.#aborted = true);
+
+  #getDelay: (attempt: number) => number = ResultRetry.zero;
+  #errorHandler?: (state: ResultRetryMonitor<E>) => void;
+
+  constructor(f: () => RetupleAwaitable<T, E>) {
+    this.#f = f as () => Promise<Result<T, E>>;
+    this.#promise = this.drain() as Promise<Result<T, E>>;
+  }
+
+  then<U = Result<T, E>, F = never>(
+    onfulfilled?:
+      | ((value: Result<T, E>) => U | PromiseLike<U>)
+      | null
+      | undefined,
+    onrejected?: ((reason: any) => F | PromiseLike<F>) | null | undefined,
+  ): PromiseLike<U | F> {
+    return this.#promise.then(onfulfilled, onrejected);
+  }
+
+  /**
+   * @TODO - Capped 100
+   */
+  $times<N extends number>(
+    this: ResultRetry<T, E>,
+    times: NonZero<N> & NonNegativeOrDecimal<N>,
+  ): ResultRetry<T, E> {
+    this.#times = Math.min(
+      Math.max(1, ResultRetry.integer(times)),
+      ResultRetry.MAX_RETRY,
+    );
+
+    return this;
+  }
+
+  /**
+   * @TODO - Capped 1 hour
+   */
+  $delay<N extends number>(
+    this: ResultRetry<T, E>,
+    f: (attempt: number) => NonNegativeOrDecimal<N>,
+  ): ResultRetry<T, E>;
+  $delay<N extends number>(
+    this: ResultRetry<T, E>,
+    ms: NonNegativeOrDecimal<N>,
+  ): ResultRetry<T, E>;
+  $delay(
+    this: ResultRetry<T, E>,
+    fnOrMs: number | ((attempt: number) => number),
+  ): ResultRetry<T, E> {
+    if (typeof fnOrMs === "function") {
+      this.#getDelay = fnOrMs;
+
+      return this;
+    }
+
+    const delay = ResultRetry.integer(fnOrMs);
+
+    if (delay > 0) {
+      this.#getDelay = () => delay;
+    }
+
+    return this;
+  }
+
+  /**
+   * @TODO
+   */
+  $monitor(f: (state: ResultRetryMonitor<E>) => void): ResultRetry<T, E> {
+    this.#errorHandler = f;
+
+    return this;
+  }
+
+  /**
+   * @TODO
+   */
+  $async(this: ResultRetry<T, E>): ResultAsync<T, E> {
+    return new ResultAsync(this);
+  }
+
+  private async drain(
+    this: ResultRetry<T, E>,
+  ): Promise<Result<T, E> | undefined> {
+    while (this.#attempt < this.#times) {
+      const result = await this.#f();
+
+      this.#attempt++;
+
+      if (result.$isOk()) {
+        return result;
+      }
+
+      if (this.#errorHandler) {
+        await this.#errorHandler({
+          error: result[0] as E,
+          attempt: this.#attempt,
+          abort: this.#abort,
+        });
+      }
+
+      if (this.#aborted || this.#attempt === this.#times) {
+        return result;
+      }
+
+      const delay = ResultRetry.integer(this.#getDelay(this.#attempt));
+
+      if (delay > 0) {
+        await ResultRetry.delay(delay);
+      }
+    }
+  }
+}
+
 function ensureError<E = Error>(err: unknown): E {
   if (err instanceof Error) {
     return err as E;
@@ -1954,19 +2143,6 @@ function mapTrue<E>(): E {
 function isTruthy<T>(val: T): val is Truthy<T> {
   return !!val;
 }
-
-type Truthy<T> = Exclude<T, false | null | undefined | 0 | 0n | "">;
-
-type OkTuple<T> = [err: undefined, value: T];
-type ErrTuple<E> = [err: E, value: undefined];
-
-type ThisOk<T> = OkTuple<T> & Retuple<T, never>;
-type ThisErr<E> = ErrTuple<E> & Retuple<never, E>;
-
-type ObjectUnionOk<T> = { success: true; data: T; error?: never | undefined };
-type ObjectUnionErr<E> = { success: false; data?: never | undefined; error: E };
-
-type RetupleAwaitable<T, E> = Retuple<T, E> | PromiseLike<Retuple<T, E>>;
 
 interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
   /**
@@ -3070,3 +3246,19 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
     this: Result<Iterable<U>, E>,
   ): IterableIterator<U, undefined, unknown>;
 }
+
+type OkTuple<T> = [err: undefined, value: T];
+type ErrTuple<E> = [err: E, value: undefined];
+
+type ThisOk<T> = OkTuple<T> & Retuple<T, never>;
+type ThisErr<E> = ErrTuple<E> & Retuple<never, E>;
+
+type RetupleAwaitable<T, E> = Retuple<T, E> | PromiseLike<Retuple<T, E>>;
+
+type ObjectUnionOk<T> = { success: true; data: T; error?: never | undefined };
+type ObjectUnionErr<E> = { success: false; data?: never | undefined; error: E };
+
+type Truthy<T> = Exclude<T, false | null | undefined | 0 | 0n | "">;
+type NonZero<N extends number> = N & (`${N}` extends "0" ? never : N);
+type NonNegativeOrDecimal<N extends number> = N &
+  (`${N}` extends `-${string}` | `${string}.${string}` ? never : N);
