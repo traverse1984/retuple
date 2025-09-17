@@ -1653,6 +1653,38 @@ class ResultAsync<T, E> {
   }
 
   /**
+   * @TODO
+   */
+  $orSafePromise<U = T>(
+    this: ResultAsync<T, E>,
+    promise: PromiseLike<U>,
+  ): ResultAsync<T | U, Error>;
+  $orSafePromise<U = T, F = E>(
+    this: ResultAsync<T, E>,
+    promise: PromiseLike<U>,
+    mapError: (err: unknown) => F,
+  ): ResultAsync<T | U, F>;
+  $orSafePromise<U, F>(
+    this: ResultAsync<T, E>,
+    promise: PromiseLike<U>,
+    mapError: (err: unknown) => F = ensureError,
+  ): ResultAsync<T | U, F | Error> {
+    return new ResultAsync(
+      this.#inner.then(async (res) => {
+        if (res instanceof ResultOk) {
+          return res;
+        }
+
+        try {
+          return Ok(await promise);
+        } catch (err) {
+          return Err(mapError(err));
+        }
+      }),
+    );
+  }
+
+  /**
    * The same as {@link Retuple.$and|$and}, except it:
    *
    * - can also accept a `PromiseLike` and value;
@@ -1751,6 +1783,38 @@ class ResultAsync<T, E> {
 
         try {
           return Ok(await f(res[1] as T));
+        } catch (err) {
+          return Err(mapError(err));
+        }
+      }),
+    );
+  }
+
+  /**
+   * @TODO
+   */
+  $andSafePromise<U = T>(
+    this: ResultAsync<T, E>,
+    promise: PromiseLike<U>,
+  ): ResultAsync<U, E | Error>;
+  $andSafePromise<U = T, F = E>(
+    this: ResultAsync<T, E>,
+    promise: PromiseLike<U>,
+    mapError: (err: unknown) => F,
+  ): ResultAsync<U, E | F>;
+  $andSafePromise<U, F>(
+    this: ResultAsync<T, E>,
+    promise: PromiseLike<U>,
+    mapError: (err: unknown) => F = ensureError,
+  ): ResultAsync<U, E | F | Error> {
+    return new ResultAsync(
+      this.#inner.then(async (res) => {
+        if (res instanceof ResultErr) {
+          return res;
+        }
+
+        try {
+          return Ok(await promise);
         } catch (err) {
           return Err(mapError(err));
         }
@@ -2265,7 +2329,7 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
   $assertOr<U = T, F = E>(
     this: Result<T, E>,
     def: Result<U, F>,
-  ): Result<Truthy<T>, E | F>;
+  ): Result<Truthy<T> | U, E | F>;
   $assertOr<U = T, F = E, A extends T = T>(
     this: Result<T, E>,
     def: Result<U, F>,
@@ -2360,7 +2424,7 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
   $assertOrElse<U = T, F = E>(
     this: Result<T, E>,
     def: (val: T) => Result<U, F>,
-  ): Result<Truthy<T>, E | F>;
+  ): Result<Truthy<T> | U, E | F>;
   $assertOrElse<U = T, F = E, A extends T = T>(
     this: Result<T, E>,
     def: (val: T) => Result<U, F>,
@@ -2577,7 +2641,7 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
   ): Result<T | U, F>;
 
   /**
-   * Returns a result based on the outcome of the safe function when this
+   * Returns a `Result` based on the outcome of the safe function when this
    * result is `Err`.
    *
    * Otherwise, returns `Ok` containing the current ok value.
@@ -2728,6 +2792,11 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
     f: (val: T) => U,
     mapError: (err: unknown) => F,
   ): Result<U, E | F>;
+
+  /**
+   * @TODO
+   */
+  // $andSafePromise
 
   /**
    * Calls the peek function and returns `Result` equivalent to this result.

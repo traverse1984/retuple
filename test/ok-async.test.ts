@@ -405,6 +405,35 @@ describe("ResultAsync (Ok)", async () => {
     });
   });
 
+  describe("$orSafePromise", () => {
+    it("should not invoke the map error function", async () => {
+      const fnMapError = vi.fn(() => {});
+      const rejected = fnReject();
+
+      await Ok().$async().$orSafePromise(rejected, fnMapError);
+
+      expect(fnMapError).not.toHaveBeenCalled();
+
+      await rejected.catch(() => {});
+    });
+
+    it("should not reject when the promise rejects", async () => {
+      const rejected = fnReject();
+
+      await expect(
+        Ok("test").$async().$orSafePromise(rejected),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await rejected.catch(() => {});
+    });
+
+    it("should resolve to Ok with the contained value", async () => {
+      await expect(
+        Ok("test").$async().$orSafePromise(Promise.resolve()),
+      ).resolves.toStrictEqual(Ok("test"));
+    });
+  });
+
   describe("$and", () => {
     it("should reject when the and promise rejects", async () => {
       await expect(Ok().$async().$and(fnReject())).rejects.toBe(errReject);
@@ -589,6 +618,51 @@ describe("ResultAsync (Ok)", async () => {
         Ok()
           .$async()
           .$andSafe(fnReject, () => "test"),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+  });
+
+  describe("$andSafePromise", () => {
+    it("should invoke the map error function with the rejected value when the promise rejects", async () => {
+      const fnMapError = vi.fn(() => {});
+      const rejected = fnReject();
+
+      await Ok().$async().$andSafePromise(rejected, fnMapError);
+
+      expect(fnMapError).toHaveBeenCalledExactlyOnceWith(errReject);
+
+      await rejected.catch(() => {});
+    });
+
+    it("should reject when the map error function throws", async () => {
+      await expect(
+        Ok().$async().$andSafePromise(fnReject(), fnThrow),
+      ).rejects.toBe(errThrow);
+    });
+
+    it("should resolve to Ok with the safe value", async () => {
+      await expect(
+        Ok().$async().$andSafePromise(Promise.resolve("test")),
+      ).resolves.toStrictEqual(Ok("test"));
+    });
+
+    it("should resolve to Err with the rejected error when the promise rejects", async () => {
+      await expect(
+        Ok("test").$async().$andSafePromise(fnReject()),
+      ).resolves.toStrictEqual(Err(errReject));
+    });
+
+    it("should map the error to RetupleThrownValueError when it is not an instance of Error, and when no map error function is provided", async () => {
+      await expect(
+        Ok().$async().$andSafePromise(Promise.reject("test")),
+      ).resolves.toStrictEqual(Err(new RetupleThrownValueError("test")));
+    });
+
+    it("should map the error with the map error function when provided", async () => {
+      await expect(
+        Ok()
+          .$async()
+          .$andSafePromise(fnReject(), () => "test"),
       ).resolves.toStrictEqual(Err("test"));
     });
   });
