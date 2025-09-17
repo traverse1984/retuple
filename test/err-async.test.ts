@@ -198,11 +198,11 @@ describe("ResultAsync (Err)", () => {
     });
   });
 
-  describe("$assertOr", () => {
+  describe("$andAssertOr", () => {
     it("should not invoke the predicate/condition function", async () => {
       const fnCond = vi.fn(() => true);
 
-      await Err().$async().$assertOr(Ok(), fnCond);
+      await Err().$async().$andAssertOr(Ok(), fnCond);
 
       expect(fnCond).not.toHaveBeenCalled();
     });
@@ -213,25 +213,25 @@ describe("ResultAsync (Err)", () => {
       await expect(
         Err("test")
           .$async()
-          .$assertOr(rejected, () => true),
+          .$andAssertOr(rejected, () => true),
       ).resolves.toStrictEqual(Err("test"));
       await rejected.catch(() => {});
     });
 
     it("should resolve to Err with the contained value", async () => {
-      await expect(Err("test").$async().$assertOr(Ok())).resolves.toStrictEqual(
-        Err("test"),
-      );
+      await expect(
+        Err("test").$async().$andAssertOr(Ok()),
+      ).resolves.toStrictEqual(Err("test"));
     });
   });
 
-  describe("$assertOrElse", () => {
+  describe("$andAssertOrElse", () => {
     it("should not invoke the default function", async () => {
       const fnDefault = vi.fn(() => Ok());
 
       await Err()
         .$async()
-        .$assertOrElse(fnDefault, () => false);
+        .$andAssertOrElse(fnDefault, () => false);
 
       expect(fnDefault).not.toHaveBeenCalled();
     });
@@ -239,7 +239,7 @@ describe("ResultAsync (Err)", () => {
     it("should not invoke the predicate/condition function", async () => {
       const fnCond = vi.fn(() => true);
 
-      await Err().$async().$assertOr(Ok(), fnCond);
+      await Err().$async().$andAssertOr(Ok(), fnCond);
 
       expect(fnCond).not.toHaveBeenCalled();
     });
@@ -250,7 +250,7 @@ describe("ResultAsync (Err)", () => {
       await expect(
         Err("test")
           .$async()
-          .$assertOr(rejected, () => true),
+          .$andAssertOr(rejected, () => true),
       ).resolves.toStrictEqual(Err("test"));
 
       await rejected.catch(() => {});
@@ -260,7 +260,7 @@ describe("ResultAsync (Err)", () => {
       await expect(
         Err("test")
           .$async()
-          .$assertOrElse(
+          .$andAssertOrElse(
             () => Ok(),
             () => true,
           ),

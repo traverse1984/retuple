@@ -225,50 +225,52 @@ describe("Ok", () => {
     });
   });
 
-  describe("$assertOr", () => {
+  describe("$andAssertOr", () => {
     it("should invoke the predicate/condition function with the contained value when provided", () => {
       const fnCond = vi.fn(() => true);
 
-      Ok("test").$assertOr(Ok(), fnCond);
+      Ok("test").$andAssertOr(Ok(), fnCond);
 
       expect(fnCond).toHaveBeenCalledExactlyOnceWith("test");
     });
 
     it("should throw when the predicate/condition function throws", () => {
-      expect(capture(() => Ok().$assertOr(Ok(), fnThrow))).toBe(errThrow);
+      expect(capture(() => Ok().$andAssertOr(Ok(), fnThrow))).toBe(errThrow);
     });
 
     it("should return Ok with the contained value when the contained value is truthy, and when no predicate/condition function is provided", () => {
-      expect(Ok("test").$assertOr(Ok())).toStrictEqual(Ok("test"));
+      expect(Ok("test").$andAssertOr(Ok())).toStrictEqual(Ok("test"));
     });
 
     it("should return Ok with the contained value when the predicate/condition function returns a truthy value", () => {
-      expect(Ok("test").$assertOr(Ok(), () => true)).toStrictEqual(Ok("test"));
-      expect(Ok("test").$assertOr(Ok(), () => "truthy")).toStrictEqual(
+      expect(Ok("test").$andAssertOr(Ok(), () => true)).toStrictEqual(
+        Ok("test"),
+      );
+      expect(Ok("test").$andAssertOr(Ok(), () => "truthy")).toStrictEqual(
         Ok("test"),
       );
     });
 
     it("should return the default Result when the contained value is falsey, and when no predicate/condition function is provided", () => {
-      expect(Ok("").$assertOr(Ok("default"))).toStrictEqual(Ok("default"));
+      expect(Ok("").$andAssertOr(Ok("default"))).toStrictEqual(Ok("default"));
     });
 
     it("should return the default Result when the predicate/condition function returns a falsey value", () => {
-      expect(Ok("test").$assertOr(Ok("default"), () => false)).toStrictEqual(
+      expect(Ok("test").$andAssertOr(Ok("default"), () => false)).toStrictEqual(
         Ok("default"),
       );
 
-      expect(Ok("test").$assertOr(Ok("default"), () => "")).toStrictEqual(
+      expect(Ok("test").$andAssertOr(Ok("default"), () => "")).toStrictEqual(
         Ok("default"),
       );
     });
   });
 
-  describe("$assertOrElse", () => {
+  describe("$andAssertOrElse", () => {
     it("should invoke the default function with the contained value when the contained value is falsey, and when no predicate/condition function is provided", () => {
       const fnDefault = vi.fn(() => Ok());
 
-      Ok("").$assertOrElse(fnDefault);
+      Ok("").$andAssertOrElse(fnDefault);
 
       expect(fnDefault).toHaveBeenCalledExactlyOnceWith("");
     });
@@ -276,7 +278,7 @@ describe("Ok", () => {
     it("should invoke the default function with the contained value when the predicate/condition function returns false", () => {
       const fnDefault = vi.fn(() => Ok());
 
-      Ok("test").$assertOrElse(fnDefault, () => false);
+      Ok("test").$andAssertOrElse(fnDefault, () => false);
 
       expect(fnDefault).toHaveBeenCalledExactlyOnceWith("test");
     });
@@ -284,13 +286,13 @@ describe("Ok", () => {
     it("should invoke the default function with the contained value when the predicate/condition function returns a falsey value", () => {
       const fnDefault = vi.fn(() => Ok());
 
-      Ok("test").$assertOrElse(fnDefault, () => "");
+      Ok("test").$andAssertOrElse(fnDefault, () => "");
 
       expect(fnDefault).toHaveBeenCalledExactlyOnceWith("test");
     });
 
     it("should throw when the default function throws", () => {
-      expect(capture(() => Ok().$assertOrElse(fnThrow, () => false))).toBe(
+      expect(capture(() => Ok().$andAssertOrElse(fnThrow, () => false))).toBe(
         errThrow,
       );
     });
@@ -298,31 +300,31 @@ describe("Ok", () => {
     it("should invoke the predicate/condition function with the contained value when provided", () => {
       const fnCond = vi.fn(() => true);
 
-      Ok("test").$assertOrElse(() => Ok(), fnCond);
+      Ok("test").$andAssertOrElse(() => Ok(), fnCond);
 
       expect(fnCond).toHaveBeenCalledExactlyOnceWith("test");
     });
 
     it("should throw when the predicate/condition function throws", () => {
-      expect(capture(() => Ok().$assertOrElse(() => Ok(), fnThrow))).toBe(
+      expect(capture(() => Ok().$andAssertOrElse(() => Ok(), fnThrow))).toBe(
         errThrow,
       );
     });
 
     it("should return Ok with the contained value when the contained value is truthy, and when no predicate/condition function is provided", () => {
-      expect(Ok("test").$assertOrElse(() => Ok())).toStrictEqual(Ok("test"));
+      expect(Ok("test").$andAssertOrElse(() => Ok())).toStrictEqual(Ok("test"));
     });
 
     it("should return Ok with the contained value when the predicate/condition function returns a truthy value", () => {
       expect(
-        Ok("test").$assertOrElse(
+        Ok("test").$andAssertOrElse(
           () => Ok(),
           () => true,
         ),
       ).toStrictEqual(Ok("test"));
 
       expect(
-        Ok("test").$assertOrElse(
+        Ok("test").$andAssertOrElse(
           () => Ok(),
           () => "truthy",
         ),
@@ -330,21 +332,21 @@ describe("Ok", () => {
     });
 
     it("should return the default Result when the contained value is falsey, and when no predicate/condition function is provided", () => {
-      expect(Ok("").$assertOrElse(() => Ok("default"))).toStrictEqual(
+      expect(Ok("").$andAssertOrElse(() => Ok("default"))).toStrictEqual(
         Ok("default"),
       );
     });
 
     it("should return the default Result when the predicate/condition function returns a falsey value", () => {
       expect(
-        Ok("test").$assertOrElse(
+        Ok("test").$andAssertOrElse(
           () => Ok("default"),
           () => false,
         ),
       ).toStrictEqual(Ok("default"));
 
       expect(
-        Ok("test").$assertOrElse(
+        Ok("test").$andAssertOrElse(
           () => Ok("default"),
           () => "",
         ),

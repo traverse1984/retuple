@@ -170,11 +170,11 @@ describe("ResultAsync (Ok)", async () => {
     });
   });
 
-  describe("$assertOr", () => {
+  describe("$andAssertOr", () => {
     it("should invoke the predicate/condition function with the contained value when provided", async () => {
       const fnCond = vi.fn(() => true);
 
-      await Ok("test").$async().$assertOr(Ok(), fnCond);
+      await Ok("test").$async().$andAssertOr(Ok(), fnCond);
 
       expect(fnCond).toHaveBeenCalledExactlyOnceWith("test");
     });
@@ -183,12 +183,12 @@ describe("ResultAsync (Ok)", async () => {
       await expect(
         Ok()
           .$async()
-          .$assertOr(fnReject(), () => false),
+          .$andAssertOr(fnReject(), () => false),
       ).rejects.toBe(errReject);
     });
 
     it("should reject when the predicate/condition function throws", async () => {
-      await expect(Ok().$async().$assertOr(Ok(), fnThrow)).rejects.toBe(
+      await expect(Ok().$async().$andAssertOr(Ok(), fnThrow)).rejects.toBe(
         errThrow,
       );
     });
@@ -199,35 +199,35 @@ describe("ResultAsync (Ok)", async () => {
       await expect(
         Ok("test")
           .$async()
-          .$assertOr(rejected, () => true),
+          .$andAssertOr(rejected, () => true),
       ).resolves.toStrictEqual(Ok("test"));
 
       await rejected.catch(() => {});
     });
 
     it("should resolve to Ok with the contained value when the contained value is truthy, and when no predicate/condition function is provided", async () => {
-      await expect(Ok("test").$async().$assertOr(Ok())).resolves.toStrictEqual(
-        Ok("test"),
-      );
+      await expect(
+        Ok("test").$async().$andAssertOr(Ok()),
+      ).resolves.toStrictEqual(Ok("test"));
     });
 
     it("should resolve to Ok with the contained value when the predicate/condition function returns a truthy value", async () => {
       await expect(
         Ok("test")
           .$async()
-          .$assertOr(Ok(), () => true),
+          .$andAssertOr(Ok(), () => true),
       ).resolves.toStrictEqual(Ok("test"));
 
       await expect(
         Ok("test")
           .$async()
-          .$assertOr(Ok(), () => "truthy"),
+          .$andAssertOr(Ok(), () => "truthy"),
       ).resolves.toStrictEqual(Ok("test"));
     });
 
     it("should resolve to the default Result when the contained value is falsey, and when no predicate/condition function is provided", async () => {
       await expect(
-        Ok("").$async().$assertOr(Ok("default")),
+        Ok("").$async().$andAssertOr(Ok("default")),
       ).resolves.toStrictEqual(Ok("default"));
     });
 
@@ -235,22 +235,22 @@ describe("ResultAsync (Ok)", async () => {
       await expect(
         Ok("test")
           .$async()
-          .$assertOr(Ok("default"), () => false),
+          .$andAssertOr(Ok("default"), () => false),
       ).resolves.toStrictEqual(Ok("default"));
 
       await expect(
         Ok("test")
           .$async()
-          .$assertOr(Ok("default"), () => ""),
+          .$andAssertOr(Ok("default"), () => ""),
       ).resolves.toStrictEqual(Ok("default"));
     });
   });
 
-  describe("$assertOrElse", () => {
+  describe("$andAssertOrElse", () => {
     it("should invoke the default function with the contained value when the contained value is falsey, and when no predicate/condition function is provided", async () => {
       const fnDefault = vi.fn(() => Ok());
 
-      await Ok("").$async().$assertOrElse(fnDefault);
+      await Ok("").$async().$andAssertOrElse(fnDefault);
 
       expect(fnDefault).toHaveBeenCalledExactlyOnceWith("");
     });
@@ -260,7 +260,7 @@ describe("ResultAsync (Ok)", async () => {
 
       await Ok("test")
         .$async()
-        .$assertOrElse(fnDefault, () => false);
+        .$andAssertOrElse(fnDefault, () => false);
 
       expect(fnDefault).toHaveBeenCalledExactlyOnceWith("test");
     });
@@ -270,7 +270,7 @@ describe("ResultAsync (Ok)", async () => {
 
       await Ok("test")
         .$async()
-        .$assertOrElse(fnDefault, () => "");
+        .$andAssertOrElse(fnDefault, () => "");
 
       expect(fnDefault).toHaveBeenCalledExactlyOnceWith("test");
     });
@@ -279,7 +279,7 @@ describe("ResultAsync (Ok)", async () => {
       await expect(
         Ok()
           .$async()
-          .$assertOrElse(fnThrow, () => false),
+          .$andAssertOrElse(fnThrow, () => false),
       ).rejects.toBe(errThrow);
     });
 
@@ -287,7 +287,7 @@ describe("ResultAsync (Ok)", async () => {
       await expect(
         Ok()
           .$async()
-          .$assertOrElse(fnReject, () => false),
+          .$andAssertOrElse(fnReject, () => false),
       ).rejects.toBe(errReject);
     });
 
@@ -295,7 +295,7 @@ describe("ResultAsync (Ok)", async () => {
       await expect(
         Ok()
           .$async()
-          .$assertOrElse(() => Ok(), fnThrow),
+          .$andAssertOrElse(() => Ok(), fnThrow),
       ).rejects.toBe(errThrow);
     });
 
@@ -303,7 +303,7 @@ describe("ResultAsync (Ok)", async () => {
       await expect(
         Ok("test")
           .$async()
-          .$assertOrElse(() => Ok()),
+          .$andAssertOrElse(() => Ok()),
       ).resolves.toStrictEqual(Ok("test"));
     });
 
@@ -311,7 +311,7 @@ describe("ResultAsync (Ok)", async () => {
       await expect(
         Ok("test")
           .$async()
-          .$assertOrElse(
+          .$andAssertOrElse(
             () => Ok(),
             () => true,
           ),
@@ -320,7 +320,7 @@ describe("ResultAsync (Ok)", async () => {
       await expect(
         Ok("test")
           .$async()
-          .$assertOrElse(
+          .$andAssertOrElse(
             () => Ok(),
             () => "truthy",
           ),
@@ -331,13 +331,13 @@ describe("ResultAsync (Ok)", async () => {
       await expect(
         Ok(false)
           .$async()
-          .$assertOrElse(() => Ok("default")),
+          .$andAssertOrElse(() => Ok("default")),
       ).resolves.toStrictEqual(Ok("default"));
 
       await expect(
         Ok(false)
           .$async()
-          .$assertOrElse(async () => Ok("default")),
+          .$andAssertOrElse(async () => Ok("default")),
       ).resolves.toStrictEqual(Ok("default"));
     });
   });

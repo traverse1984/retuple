@@ -248,27 +248,27 @@ describe("Err", () => {
     });
   });
 
-  describe("$assertOr", () => {
+  describe("$andAssertOr", () => {
     it("should not invoke the predicate/condition function", () => {
       const fnCond = vi.fn(() => true);
 
-      Err().$assertOr(Ok(), fnCond);
+      Err().$andAssertOr(Ok(), fnCond);
 
       expect(fnCond).not.toHaveBeenCalled();
     });
 
     it("should return Err with the contained value", () => {
-      expect(Err("test").$assertOr(Ok(), () => true)).toStrictEqual(
+      expect(Err("test").$andAssertOr(Ok(), () => true)).toStrictEqual(
         Err("test"),
       );
     });
   });
 
-  describe("$assertOrElse", () => {
+  describe("$andAssertOrElse", () => {
     it("should not invoke the default function", () => {
       const fnDefault = vi.fn(() => Ok());
 
-      Err().$assertOrElse(fnDefault, () => true);
+      Err().$andAssertOrElse(fnDefault, () => true);
 
       expect(fnDefault).not.toHaveBeenCalled();
     });
@@ -276,14 +276,14 @@ describe("Err", () => {
     it("should not invoke the predicate/condition function", () => {
       const fnCond = vi.fn(() => true);
 
-      Err().$assertOrElse(() => Ok(), fnCond);
+      Err().$andAssertOrElse(() => Ok(), fnCond);
 
       expect(fnCond).not.toHaveBeenCalled();
     });
 
     it("should return Err with the contained value", () => {
       expect(
-        Err("test").$assertOrElse(
+        Err("test").$andAssertOrElse(
           () => Ok(),
           () => true,
         ),

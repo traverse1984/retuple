@@ -1114,7 +1114,7 @@ class ResultOk<T, E>
     return Ok(f(this[1]));
   }
 
-  $assertOr<U, F, A extends T>(
+  $andAssertOr<U, F, A extends T>(
     this: ThisOk<T>,
     def: Result<U, F>,
     condition: ((val: T) => unknown) | ((val: T) => val is A) = isTruthy,
@@ -1122,7 +1122,7 @@ class ResultOk<T, E>
     return condition(this[1]) ? this : def;
   }
 
-  $assertOrElse<U, F, A extends T>(
+  $andAssertOrElse<U, F, A extends T>(
     this: ThisOk<T>,
     def: (val: T) => Result<U, F>,
     condition: ((val: T) => unknown) | ((val: T) => val is A) = isTruthy,
@@ -1296,11 +1296,11 @@ class ResultErr<T, E>
     return Ok(def(this[0]));
   }
 
-  $assertOr(this: ThisErr<E>): ThisErr<E> {
+  $andAssertOr(this: ThisErr<E>): ThisErr<E> {
     return this;
   }
 
-  $assertOrElse(this: ThisErr<E>): ThisErr<E> {
+  $andAssertOrElse(this: ThisErr<E>): ThisErr<E> {
     return this;
   }
 
@@ -1502,26 +1502,26 @@ class ResultAsync<T, E> {
   }
 
   /**
-   * The same as {@link Retuple.$assertOr|$assertOr}, except it:
+   * The same as {@link Retuple.$andAssertOr|$andAssertOr}, except it:
    *
    * - can also accept a `PromiseLike` default value;
    * - returns `ResultAsync`.
    */
-  $assertOr<U = T, F = E>(
+  $andAssertOr<U = T, F = E>(
     this: ResultAsync<T, E>,
     def: RetupleAwaitable<U, F>,
-  ): ResultAsync<Truthy<T>, E | F>;
-  $assertOr<U = T, F = E, A extends T = T>(
+  ): ResultAsync<Truthy<T> | U, E | F>;
+  $andAssertOr<U = T, F = E, A extends T = T>(
     this: ResultAsync<T, E>,
     def: RetupleAwaitable<U, F>,
     predicate: (val: T) => val is A,
   ): ResultAsync<U | A, E | F>;
-  $assertOr<U = T, F = E>(
+  $andAssertOr<U = T, F = E>(
     this: ResultAsync<T, E>,
     def: RetupleAwaitable<U, F>,
     condition: (val: T) => unknown,
   ): ResultAsync<T | U, E | F>;
-  $assertOr<U, F, A extends T>(
+  $andAssertOr<U, F, A extends T>(
     this: ResultAsync<T, E>,
     def: Result<U, F> | PromiseLike<Result<U, F>>,
     condition: ((val: T) => unknown) | ((val: T) => val is A) = isTruthy,
@@ -1538,26 +1538,26 @@ class ResultAsync<T, E> {
   }
 
   /**
-   * The same as {@link Retuple.$assertOrElse|$assertOrElse}, except it:
+   * The same as {@link Retuple.$andAssertOrElse|$andAssertOrElse}, except it:
    *
    * - can also accept an `async` default function;
    * - returns `ResultAsync`.
    */
-  $assertOrElse<U = T, F = E>(
+  $andAssertOrElse<U = T, F = E>(
     this: ResultAsync<T, E>,
     def: (val: T) => RetupleAwaitable<U, F>,
-  ): ResultAsync<Truthy<T>, E | F>;
-  $assertOrElse<U = T, F = E, A extends T = T>(
+  ): ResultAsync<Truthy<T> | U, E | F>;
+  $andAssertOrElse<U = T, F = E, A extends T = T>(
     this: ResultAsync<T, E>,
     def: (val: T) => RetupleAwaitable<U, F>,
     predicate: (val: T) => val is A,
   ): ResultAsync<U | A, E | F>;
-  $assertOrElse<U = T, F = E>(
+  $andAssertOrElse<U = T, F = E>(
     this: ResultAsync<T, E>,
     def: (val: T) => RetupleAwaitable<U, F>,
     condition: (val: T) => unknown,
   ): ResultAsync<T | U, E | F>;
-  $assertOrElse<U, F, A extends T>(
+  $andAssertOrElse<U, F, A extends T>(
     this: ResultAsync<T, E>,
     def: (val: T) => Result<U, F> | PromiseLike<Result<U, F>>,
     condition: ((val: T) => unknown) | ((val: T) => val is A) = isTruthy,
@@ -2271,7 +2271,7 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
    *
    * ```ts
    * const result: Result<string | null, string> = Ok("test");
-   * const asserted = result.$assertOr(Ok("ok-default"));
+   * const asserted = result.$andAssertOr(Ok("ok-default"));
    *
    * asserted satisfies Result<string, string>;
    * assert.equal(asserted.$unwrap(), "test");
@@ -2281,7 +2281,7 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
    *
    * ```ts
    * const result: Result<string | null, string> = Ok("test");
-   * const asserted = result.$assertOr(
+   * const asserted = result.$andAssertOr(
    *    Err("err-default"),
    *    (val): val is "test" => val === "test",
    * );
@@ -2294,7 +2294,7 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
    *
    * ```ts
    * const result: Result<string | null, string> = Ok(null);
-   * const asserted = result.$assertOr(Ok("ok-default"));
+   * const asserted = result.$andAssertOr(Ok("ok-default"));
    *
    * asserted satisfies Result<string, string>;
    * assert.equal(asserted.$unwrap(), "ok-default");
@@ -2304,7 +2304,7 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
    *
    * ```ts
    * const result: Result<string | null, string> = Ok("value");
-   * const asserted = result.$assertOr(
+   * const asserted = result.$andAssertOr(
    *    Err("err-default"),
    *    (val): val is "test" => val === "test",
    * );
@@ -2317,7 +2317,7 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
    *
    * ```ts
    * const result: Result<string | null, string> = Err("test");
-   * const asserted = result.$assertOr(
+   * const asserted = result.$andAssertOr(
    *    Err("err-default"),
    *    (val): val is "test" => val === "test",
    * );
@@ -2326,16 +2326,16 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
    * assert.equal(asserted.$unwrapErr(), "test");
    * ```
    */
-  $assertOr<U = T, F = E>(
+  $andAssertOr<U = T, F = E>(
     this: Result<T, E>,
     def: Result<U, F>,
   ): Result<Truthy<T> | U, E | F>;
-  $assertOr<U = T, F = E, A extends T = T>(
+  $andAssertOr<U = T, F = E, A extends T = T>(
     this: Result<T, E>,
     def: Result<U, F>,
     predicate: (val: T) => val is A,
   ): Result<U | A, E | F>;
-  $assertOr<U = T, F = E>(
+  $andAssertOr<U = T, F = E>(
     this: Result<T, E>,
     def: Result<U, F>,
     condition: (val: T) => unknown,
@@ -2362,7 +2362,7 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
    *
    * ```ts
    * const result: Result<string | null, string> = Ok("test");
-   * const asserted = result.$assertOrElse(
+   * const asserted = result.$andAssertOrElse(
    *    (val) => Ok(`ok-default:${val}`),
    * );
    *
@@ -2374,7 +2374,7 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
    *
    * ```ts
    * const result: Result<string | null, string> = Ok("test");
-   * const asserted = result.$assertOrElse(
+   * const asserted = result.$andAssertOrElse(
    *    (val) => Err(`err-default:${val}`),
    *    (val): val is "test" => val === "test",
    * );
@@ -2387,7 +2387,7 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
    *
    * ```ts
    * const result: Result<string | null, string> = Ok(null);
-   * const asserted = result.$assertOrElse(
+   * const asserted = result.$andAssertOrElse(
    *    (val) => Ok(`ok-default:${val}`),
    * );
    *
@@ -2399,7 +2399,7 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
    *
    * ```ts
    * const result: Result<string | null, string> = Ok("value");
-   * const asserted = result.$assertOrElse(
+   * const asserted = result.$andAssertOrElse(
    *    (val) => Err(`err-default:${val}`),
    *    (val): val is "test" => val === "test",
    * );
@@ -2412,7 +2412,7 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
    *
    * ```ts
    * const result: Result<string | null, string> = Err("test");
-   * const asserted = result.$assertOrElse(
+   * const asserted = result.$andAssertOrElse(
    *    (val) => Err(`err-default:${val}`),
    *    (val): val is "test" => val === "test",
    * );
@@ -2421,16 +2421,16 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
    * assert.equal(asserted.$unwrapErr(), "test");
    * ```
    */
-  $assertOrElse<U = T, F = E>(
+  $andAssertOrElse<U = T, F = E>(
     this: Result<T, E>,
     def: (val: T) => Result<U, F>,
   ): Result<Truthy<T> | U, E | F>;
-  $assertOrElse<U = T, F = E, A extends T = T>(
+  $andAssertOrElse<U = T, F = E, A extends T = T>(
     this: Result<T, E>,
     def: (val: T) => Result<U, F>,
     predicate: (val: T) => val is A,
   ): Result<U | A, E | F>;
-  $assertOrElse<U = T, F = E>(
+  $andAssertOrElse<U = T, F = E>(
     this: Result<T, E>,
     def: (val: T) => Result<U, F>,
     condition: (val: T) => unknown,
