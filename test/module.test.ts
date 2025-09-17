@@ -15,26 +15,6 @@ describe("Module", () => {
     expect(rt.Err).toBeTypeOf("function");
   });
 
-  it("should export the nonNullable function", () => {
-    expect(rt.nonNullable).toBeTypeOf("function");
-  });
-
-  it("should export the truthy function", () => {
-    expect(rt.truthy).toBeTypeOf("function");
-  });
-
-  it("should export the safe function", () => {
-    expect(rt.safe).toBeTypeOf("function");
-  });
-
-  it("should export the safeAsync function", () => {
-    expect(rt.safeAsync).toBeTypeOf("function");
-  });
-
-  it("should export the safePromise function", () => {
-    expect(rt.safePromise).toBeTypeOf("function");
-  });
-
   describe("Class exports", () => {
     describe("RetupleUnwrapFailed", () => {
       it("should be exported", () => {
@@ -96,18 +76,24 @@ describe("Module", () => {
       expect(Object.isFrozen(rt.Result)).toBe(true);
     });
 
-    it("should include the function exports from the module", () => {
-      expect(rt.Result).toStrictEqual(
-        expect.objectContaining({
-          Ok: rt.Ok,
-          Err: rt.Err,
-          $nonNullable: rt.nonNullable,
-          $truthy: rt.truthy,
-          $safe: rt.safe,
-          $safeAsync: rt.safeAsync,
-          $safePromise: rt.safePromise,
-        }),
-      );
+    it("should include the nonNullable function", () => {
+      expect(rt.Result.$nonNullable).toBeTypeOf("function");
+    });
+
+    it("should include the truthy function", () => {
+      expect(rt.Result.$truthy).toBeTypeOf("function");
+    });
+
+    it("should include the safe function", () => {
+      expect(rt.Result.$safe).toBeTypeOf("function");
+    });
+
+    it("should include the safeAsync function", () => {
+      expect(rt.Result.$safeAsync).toBeTypeOf("function");
+    });
+
+    it("should include the safePromise function", () => {
+      expect(rt.Result.$safePromise).toBeTypeOf("function");
     });
   });
 });

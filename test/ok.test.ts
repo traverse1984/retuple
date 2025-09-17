@@ -2,9 +2,9 @@ import { vi, describe, it, expect } from "vitest";
 import { capture, errThrow, fnThrow } from "./util.js";
 
 import {
+  Result,
   Ok,
   Err,
-  safeAsync,
   RetupleUnwrapErrFailed,
   RetupleThrownValueError,
   RetupleFlattenFailed,
@@ -561,7 +561,7 @@ describe("Ok", () => {
 
   describe("$async", () => {
     it("should return ResultAsync", async () => {
-      const prototype = Object.getPrototypeOf(safeAsync(() => {}));
+      const prototype = Object.getPrototypeOf(Result.$safeAsync(() => {}));
 
       expect(prototype).toBeTypeOf("object");
       expect(Ok().$async()).toBeInstanceOf(prototype.constructor);

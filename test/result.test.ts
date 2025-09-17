@@ -36,6 +36,60 @@ describe("Result", () => {
     });
   });
 
+  describe("$resolve", () => {
+    it("should return ResultAsync when the result is Ok", async () => {
+      await expect(Result.$resolve(Ok("test"))).resolves.toStrictEqual(
+        Ok("test"),
+      );
+    });
+
+    it("should return ResultAsync when the result is Err", async () => {
+      await expect(Result.$resolve(Err("test"))).resolves.toStrictEqual(
+        Err("test"),
+      );
+    });
+
+    it("should return itself when the result is ResultAsync", () => {
+      const result = Ok("tet").$async();
+
+      expect(Result.$resolve(result)).toBe(result);
+    });
+
+    it("should return ResultAsync when the result is a Promise of Ok", async () => {
+      await expect(
+        Result.$resolve(Promise.resolve(Ok("test"))),
+      ).resolves.toStrictEqual(Ok("test"));
+    });
+
+    it("should return ResultAsync when the result is a Promise of Err", async () => {
+      await expect(
+        Result.$resolve(Promise.resolve(Err("test"))),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+
+    it("should return ResultAsync when the result is a Promise of ResultAsync", async () => {
+      await expect(
+        Result.$resolve(Promise.resolve(Ok("test").$async())),
+      ).resolves.toStrictEqual(Ok("test"));
+    });
+
+    it("should return ResultAsync when the result is a thenable of Ok", async () => {
+      await expect(
+        Result.$resolve({
+          then: (resolve: (...args: any[]) => any) => resolve(Ok("test")),
+        }),
+      ).resolves.toStrictEqual(Ok("test"));
+    });
+
+    it("should return ResultAsync when the result is a thenable of Err", async () => {
+      await expect(
+        Result.$resolve({
+          then: (resolve: (...args: any[]) => any) => resolve(Err("test")),
+        }),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+  });
+
   describe("$nonNullable", () => {
     it("should not invoke the error function when the from value is neither null or undefined", () => {
       const fnMapError = vi.fn(() => {});

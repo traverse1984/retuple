@@ -1,12 +1,5 @@
 export type Ok = typeof Ok;
 export type Err = typeof Err;
-
-export type nonNullable = typeof nonNullable;
-export type truthy = typeof truthy;
-export type safe = typeof safe;
-export type safeAsync = typeof safeAsync;
-export type safePromise = typeof safePromise;
-
 export type Result<T, E> = (OkTuple<T> | ErrTuple<E>) & Retuple<T, E>;
 
 export { type ResultAsync };
@@ -144,6 +137,7 @@ export function Result<
 
 Result.Ok = Ok;
 Result.Err = Err;
+Result.$resolve = resolve;
 Result.$nonNullable = nonNullable;
 Result.$truthy = truthy;
 Result.$safe = safe;
@@ -202,6 +196,18 @@ export function Err<const E>(err?: E): ThisErr<E | void> {
   return new ResultErr<never, E | void>(err) as any;
 }
 
+function resolve<T, E>(
+  result: Retuple<T, E> | PromiseLike<Retuple<T, E>>,
+): ResultAsync<T, E> {
+  if (result instanceof ResultAsync) {
+    return result;
+  } else if (result instanceof ResultOk || result instanceof ResultErr) {
+    return (result as Result<T, E>).$async();
+  } else {
+    return new ResultAsync(result as PromiseLike<Result<T, E>>);
+  }
+}
+
 /**
  * Construct a {@link Result} from a value. If the value is neither null or
  * undefined, the result is `Ok`.
@@ -247,12 +253,12 @@ export function Err<const E>(err?: E): ThisErr<E | void> {
  * assert.equal(value, undefined);
  * ```
  */
-export function nonNullable<const T>(value: T): Result<NonNullable<T>, true>;
-export function nonNullable<const T, E>(
+function nonNullable<const T>(value: T): Result<NonNullable<T>, true>;
+function nonNullable<const T, E>(
   value: T,
   error: () => E,
 ): Result<NonNullable<T>, E>;
-export function nonNullable<T, E>(
+function nonNullable<T, E>(
   value: T,
   error: () => E = mapTrue,
 ): Result<NonNullable<T>, E> {
@@ -308,12 +314,9 @@ export function nonNullable<T, E>(
  * assert.equal(value, undefined);
  * ```
  */
-export function truthy<const T>(value: T): Result<Truthy<T>, true>;
-export function truthy<const T, E>(
-  value: T,
-  error: () => E,
-): Result<Truthy<T>, E>;
-export function truthy<T, E>(
+function truthy<const T>(value: T): Result<Truthy<T>, true>;
+function truthy<const T, E>(value: T, error: () => E): Result<Truthy<T>, E>;
+function truthy<T, E>(
   value: T,
   error: () => E = mapTrue,
 ): Result<Truthy<T>, E> {
@@ -389,12 +392,12 @@ export function truthy<T, E>(
  * assert(err instanceof RetupleThrownValueError && err.value === "non error");
  * assert.equal(value, undefined);
  */
-export function safe<T>(f: () => Awaited<T>): Result<T, Error>;
-export function safe<T, E>(
+function safe<T>(f: () => Awaited<T>): Result<T, Error>;
+function safe<T, E>(
   f: () => Awaited<T>,
   mapError: (err: unknown) => E,
 ): Result<T, E>;
-export function safe<T, E>(
+function safe<T, E>(
   f: () => Awaited<T>,
   mapError: (err: unknown) => E = ensureError,
 ): Result<T, E> {
@@ -470,14 +473,12 @@ export function safe<T, E>(
  * assert(err instanceof RetupleThrownValueError && err.value === "non error");
  * assert.equal(value, undefined);
  */
-export function safeAsync<T>(
-  f: () => T | PromiseLike<T>,
-): ResultAsync<T, Error>;
-export function safeAsync<T, E>(
+function safeAsync<T>(f: () => T | PromiseLike<T>): ResultAsync<T, Error>;
+function safeAsync<T, E>(
   f: () => T | PromiseLike<T>,
   mapError: (err: unknown) => E,
 ): ResultAsync<T, E>;
-export function safeAsync<T, E>(
+function safeAsync<T, E>(
   f: () => T | PromiseLike<T>,
   mapError: (err: unknown) => E = ensureError,
 ): ResultAsync<T, E> {
@@ -553,12 +554,12 @@ export function safeAsync<T, E>(
  * assert(err instanceof RetupleThrownValueError && err.value === "non error");
  * assert.equal(value, undefined);
  */
-export function safePromise<T>(promise: PromiseLike<T>): ResultAsync<T, Error>;
-export function safePromise<T, E>(
+function safePromise<T>(promise: PromiseLike<T>): ResultAsync<T, Error>;
+function safePromise<T, E>(
   promise: PromiseLike<T>,
   mapError: (err: unknown) => E,
 ): ResultAsync<T, E>;
-export function safePromise<T, E>(
+function safePromise<T, E>(
   promise: PromiseLike<T>,
   mapError: (err: unknown) => E = ensureError,
 ): ResultAsync<T, E> {
