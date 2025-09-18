@@ -1,3 +1,9 @@
+import { Ok, Err } from "../src/index.js";
+import { ResultLikeSymbol } from "../src/symbol.js";
+
+export const ResultLikeOk = { [ResultLikeSymbol]: () => Ok("test") };
+export const ResultLikeErr = { [ResultLikeSymbol]: () => Err("test") };
+
 export function capture(fn: () => any): any {
   try {
     fn();
@@ -107,3 +113,11 @@ export const arrayMethodsUnavailable = [
   "values",
   "with",
 ] as const;
+
+declare const __TestArrayMethods__: TestArrayMethods<
+  Record<(typeof arrayMethodsUnavailable)[number], true>
+>;
+
+type TestArrayMethods<
+  T extends Record<Exclude<keyof any[] & string, "length">, true>,
+> = T;

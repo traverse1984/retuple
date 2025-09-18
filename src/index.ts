@@ -1,8 +1,19 @@
+import { ResultLikeSymbol } from "./symbol.js";
+
 export type Ok = typeof Ok;
 export type Err = typeof Err;
 export type Result<T, E> = (OkTuple<T> | ErrTuple<E>) & Retuple<T, E>;
+export type ResultLike<T, E> = {
+  [ResultLikeSymbol](): Result<T, E>;
+};
 
-export { type ResultAsync };
+export { type ResultAsync, type ResultRetry };
+
+export interface ResultRetryController<E> {
+  error: E;
+  attempt: number;
+  abort: () => void;
+}
 
 /**
  * ## Retuple Unwrap Failed
@@ -45,43 +56,15 @@ export class RetupleExpectFailed<const E = unknown> extends Error {
 }
 
 /**
- * ## Retuple Expect Failed
- *
- * An error which occurs when calling `$flatten` on `Ok`, when the value
- * contained in the `Ok` is not an `Ok` or `Err`.
- */
-export class RetupleFlattenFailed<const T = unknown> extends Error {
-  constructor(public value: T) {
-    super("Flatten Result failed, the contained value was not a Result");
-  }
-}
-
-/**
  * ## Retuple Thrown Value Error
  *
  * An error constructed when a safe function call throws or rejects, when the
  * thrown error or rejected value is not an instance of `Error`, and when no
  * map error function is provided.
  */
-export class RetupleThrownValueError extends Error {
+export class RetupleCaughtValueError extends Error {
   constructor(public value: unknown) {
     super("Caught value was not an instance of Error");
-  }
-}
-
-/**
- * ## Retuple Invalid Result Error
- *
- * This error is thrown when attempting to construct a `Result` from a tuple,
- * when neither index 0 or 1 are null or undefined. In this case, it is
- * impossible to determine whether the result should be `Ok` or `Err`.
- */
-export class RetupleInvalidResultError extends Error {
-  constructor(public value: unknown[]) {
-    super(
-      "Constructing a Result from native tuple failed, at least one of the " +
-        "values at index 0 or 1 should be null or undefined",
-    );
   }
 }
 
@@ -124,45 +107,22 @@ export class RetupleArrayMethodUnavailableError extends Error {
  *
  * @TODO
  */
-export function Result<
-  R extends
-    | [err: null | undefined, value: unknown]
-    | [err: unknown, value: null | undefined],
->(
-  resultLike: R,
-): (
-  R extends [null | undefined, infer T]
-    ? ThisOk<T>
-    : R extends [infer E, null | undefined]
-      ? ThisErr<E>
-      : never
-) extends ThisOk<infer T> | ThisErr<infer E>
-  ? Result<T, NonNullable<E>>
-  : never {
-  const [err, ok] = resultLike;
-
-  if (err === null || err === undefined) {
-    return new ResultOk(ok) as any;
-  }
-
-  if (ok === null || ok === undefined) {
-    return new ResultErr(err) as any;
-  }
-
-  throw new RetupleInvalidResultError(resultLike);
+export function Result<T, E>(resultLike: ResultLike<T, E>): Result<T, E> {
+  return asResult(resultLike);
 }
 
 Result.Ok = Ok;
 Result.Err = Err;
-Result.$resolve = resolve;
-Result.$nonNullable = nonNullable;
-Result.$truthy = truthy;
-Result.$union = union;
-Result.$safe = safe;
-Result.$safeAsync = safeAsync;
-Result.$safePromise = safePromise;
-Result.$retry = retry;
-Result.$safeRetry = safeRetry;
+Result.$from = $from;
+Result.$resolve = $resolve;
+Result.$nonNullable = $nonNullable;
+Result.$truthy = $truthy;
+Result.$fromUnion = $fromUnion;
+Result.$safe = $safe;
+Result.$safeAsync = $safeAsync;
+Result.$safePromise = $safePromise;
+Result.$retry = $retry;
+Result.$safeRetry = $safeRetry;
 
 Object.freeze(Result);
 
@@ -217,17 +177,57 @@ export function Err<const E>(err?: E): ThisErr<E | void> {
 }
 
 /**
- * @TODO
+ * Construct a {@link Result} from a {@link ResultLike}.
+ *
+ * @example
+ *
+ * ```ts
+ * const value: Result<T, E> | ResultLike<T, E> = someResultFn();
+ * const result: Result<T, E> = Result.$from(result);
+ * ```
  */
-function resolve<T, E>(
-  result: Retuple<T, E> | PromiseLike<Retuple<T, E>>,
-): ResultAsync<T, E> {
-  if (result instanceof ResultAsync) {
+function $from<T, E>(result: ResultLike<T, E>): Result<T, E> {
+  if (result instanceof ResultOk || result instanceof ResultErr) {
     return result;
-  } else if (result instanceof ResultOk || result instanceof ResultErr) {
-    return (result as Result<T, E>).$async();
-  } else {
-    return new ResultAsync(result as PromiseLike<Result<T, E>>);
+  }
+
+  return asResult(result);
+}
+
+/**
+ * Construct a {@link ResultAsync} from a {@link ResultLikeAwaitable}.
+ *
+ * @example
+ *
+ * ```ts
+ * const value:
+ *    | Result<T, E>
+ *    | ResultLike<T, E>
+ *    | ResultAsync<T, E>
+ *    | Promise<Result<T, E>>
+ *    | Promise<ResultLike<T, E>>
+ *    | PromiseLike<Result<T, E>>
+ *    | PromiseLike<ResultLike<T, E>> = someResultFn();
+ *
+ * const result: ResultAsync<T, E> = Result.$resolve(result);
+ * ```
+ */
+function $resolve<T, E>(result: ResultLikeAwaitable<T, E>): ResultAsync<T, E> {
+  switch (true) {
+    case result instanceof ResultAsync:
+      return result;
+
+    case result instanceof ResultRetry:
+      return new ResultAsync(result);
+
+    case result instanceof ResultOk:
+    case result instanceof ResultErr:
+      return new ResultAsync(Promise.resolve(result));
+
+    default:
+      return new ResultAsync<T, E>(
+        Promise.resolve(result).then(asResult<T, E>),
+      );
   }
 }
 
@@ -276,12 +276,12 @@ function resolve<T, E>(
  * assert.equal(value, undefined);
  * ```
  */
-function nonNullable<const T>(value: T): Result<NonNullable<T>, true>;
-function nonNullable<const T, E>(
+function $nonNullable<const T>(value: T): Result<NonNullable<T>, true>;
+function $nonNullable<const T, E>(
   value: T,
   error: () => E,
 ): Result<NonNullable<T>, E>;
-function nonNullable<T, E>(
+function $nonNullable<T, E>(
   value: T,
   error: () => E = mapTrue,
 ): Result<NonNullable<T>, E> {
@@ -337,9 +337,9 @@ function nonNullable<T, E>(
  * assert.equal(value, undefined);
  * ```
  */
-function truthy<const T>(value: T): Result<Truthy<T>, true>;
-function truthy<const T, E>(value: T, error: () => E): Result<Truthy<T>, E>;
-function truthy<T, E>(
+function $truthy<const T>(value: T): Result<Truthy<T>, true>;
+function $truthy<const T, E>(value: T, error: () => E): Result<Truthy<T>, E>;
+function $truthy<T, E>(
   value: T,
   error: () => E = mapTrue,
 ): Result<Truthy<T>, E> {
@@ -351,9 +351,51 @@ function truthy<T, E>(
 }
 
 /**
- * @TODO
+ * Construct a {@link Result} from a common discriminated union shape. If the
+ * union is 'success' then the result is `Ok`
+ *
+ * Otherwise, the result is `Err` containing:
+ *
+ * - the returned value from the error function when provided;
+ * - or `true` otherwise.
+ *
+ * @example
+ *
+ * ```ts
+ * const result: Result<string, Error> = Result.$truthy(
+ *    username.trim(),
+ *    () => new Error("Username is empty"),
+ * );
+ * ```
+ *
+ * @example
+ *
+ * ```ts
+ * const [err, value] = Result.$truthy("test");
+ *
+ * assert.equal(err, undefined);
+ * assert.equal(value, "test");
+ * ```
+ *
+ * @example
+ *
+ * ```ts
+ * const [err, value] = Result.$truthy("");
+ *
+ * assert.equal(err, true);
+ * assert.equal(value, undefined);
+ * ```
+ *
+ * @example
+ *
+ * ```ts
+ * const [err, value] = Result.$truthy(0, () => "error");
+ *
+ * assert.equal(err, "error");
+ * assert.equal(value, undefined);
+ * ```
  */
-function union<U extends ObjectUnionOk<any> | ObjectUnionErr<any>>(
+function $fromUnion<U extends ObjectUnionOk<any> | ObjectUnionErr<any>>(
   union: U,
 ): Result<
   U extends ObjectUnionOk<infer T> ? T : never,
@@ -378,7 +420,7 @@ function union<U extends ObjectUnionOk<any> | ObjectUnionErr<any>>(
  *
  * - the returned value from the map error function when provided;
  * - the thrown error when it is an instance of `Error`;
- * - `RetupleThrownValueError` when a non `Error` instance is thrown.
+ * - `RetupleCaughtValueError` when a non `Error` instance is thrown.
  *
  * @example
  *
@@ -432,15 +474,15 @@ function union<U extends ObjectUnionOk<any> | ObjectUnionErr<any>>(
  *    throw "non error";
  * });
  *
- * assert(err instanceof RetupleThrownValueError && err.value === "non error");
+ * assert(err instanceof RetupleCaughtValueError && err.value === "non error");
  * assert.equal(value, undefined);
  */
-function safe<T>(f: () => Awaited<T>): Result<T, Error>;
-function safe<T, E>(
+function $safe<T>(f: () => Awaited<T>): Result<T, Error>;
+function $safe<T, E>(
   f: () => Awaited<T>,
   mapError: (err: unknown) => E,
 ): Result<T, E>;
-function safe<T, E>(
+function $safe<T, E>(
   f: () => Awaited<T>,
   mapError: (err: unknown) => E = ensureError,
 ): Result<T, E> {
@@ -459,7 +501,7 @@ function safe<T, E>(
  *
  * - the returned value from the map error function when provided;
  * - the thrown/rejected error when it is an instance of `Error`;
- * - `RetupleThrownValueError` when throwing/rejecting with a non `Error`.
+ * - `RetupleCaughtValueError` when throwing/rejecting with a non `Error`.
  *
  * @example
  *
@@ -513,15 +555,15 @@ function safe<T, E>(
  *    throw "non error";
  * });
  *
- * assert(err instanceof RetupleThrownValueError && err.value === "non error");
+ * assert(err instanceof RetupleCaughtValueError && err.value === "non error");
  * assert.equal(value, undefined);
  */
-function safeAsync<T>(f: () => T | PromiseLike<T>): ResultAsync<T, Error>;
-function safeAsync<T, E>(
+function $safeAsync<T>(f: () => T | PromiseLike<T>): ResultAsync<T, Error>;
+function $safeAsync<T, E>(
   f: () => T | PromiseLike<T>,
   mapError: (err: unknown) => E,
 ): ResultAsync<T, E>;
-function safeAsync<T, E>(
+function $safeAsync<T, E>(
   f: () => T | PromiseLike<T>,
   mapError: (err: unknown) => E = ensureError,
 ): ResultAsync<T, E> {
@@ -544,7 +586,7 @@ function safeAsync<T, E>(
  *
  * - the returned value from the map error function when provided;
  * - the rejected error when it is an instance of `Error`;
- * - `RetupleThrownValueError` when rejecting with a non `Error`.
+ * - `RetupleCaughtValueError` when rejecting with a non `Error`.
  *
  * @example
  *
@@ -594,15 +636,15 @@ function safeAsync<T, E>(
  *    Promise.reject("non error"),
  * );
  *
- * assert(err instanceof RetupleThrownValueError && err.value === "non error");
+ * assert(err instanceof RetupleCaughtValueError && err.value === "non error");
  * assert.equal(value, undefined);
  */
-function safePromise<T>(promise: PromiseLike<T>): ResultAsync<T, Error>;
-function safePromise<T, E>(
+function $safePromise<T>(promise: PromiseLike<T>): ResultAsync<T, Error>;
+function $safePromise<T, E>(
   promise: PromiseLike<T>,
   mapError: (err: unknown) => E,
 ): ResultAsync<T, E>;
-function safePromise<T, E>(
+function $safePromise<T, E>(
   promise: PromiseLike<T>,
   mapError: (err: unknown) => E = ensureError,
 ): ResultAsync<T, E> {
@@ -612,23 +654,56 @@ function safePromise<T, E>(
 }
 
 /**
- * @TODO
+ * Construct a {@link ResultRetry} from a function which returns a
+ * {@link Result}. The function will be retried based on provided retry
+ * settings and eventually return a `Result`. No attempt is made to catch
+ * thrown errors or promise rejections.
+ *
+ * To retry a potentially unsafe function, use {@link Result.$safeRetry}.
+ *
+ * @example
+ *
+ * ```ts
+ * // Retry someResultFn up to 3 times until Ok is returned,
+ * // with a 1 second delay between each invocation:
+ * const result = await Result.$retry(someResultFn).$times(3).$delay(1000);
+ * ```
  */
-function retry<T, E>(
-  f: () => Retuple<T, E> | PromiseLike<Retuple<T, E>>,
+function $retry<T, E>(
+  f: () => ResultLike<T, E> | PromiseLike<ResultLike<T, E>>,
 ): ResultRetry<T, E> {
   return new ResultRetry(f);
 }
 
 /**
- * @TODO
+ * Construct a {@link ResultRetry} from a function. Uses the same strategy as
+ * {@link Result.$safeAsync}, equivalent to calling:
+ *
+ * ```ts
+ * Result.$retry(() => Result.$safeAsync(...));
+ * ```
+ *
+ * @example
+ *
+ * ```ts
+ * // Retry the fetch up to 3 times until it succeeds
+ * // with a 1 second delay between each invocation:
+ * const result: Result<Response, Error> = await Result
+ *    .$safeRetry(
+ *       () => fetch("http://example.com/api"),
+ *       () => new Error("Fetch failed"),
+ *    )
+ *    .$times(3)
+ *    .$delay(1000)
+ *    .$handle(({ attempt }) => console.log("Attempt:", attempt));
+ * ```
  */
-function safeRetry<T>(f: () => T | PromiseLike<T>): ResultRetry<T, Error>;
-function safeRetry<T, E>(
+function $safeRetry<T>(f: () => T | PromiseLike<T>): ResultRetry<T, Error>;
+function $safeRetry<T, E>(
   f: () => T | PromiseLike<T>,
   mapError: (err: unknown) => E,
 ): ResultRetry<T, E>;
-function safeRetry<T, E = Error>(
+function $safeRetry<T, E = Error>(
   f: () => T | PromiseLike<T>,
   mapError: (err: unknown) => E = ensureError,
 ): ResultRetry<T, E> {
@@ -651,8 +726,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -663,8 +737,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -675,8 +748,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -687,8 +759,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -699,8 +770,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -711,8 +781,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -723,8 +792,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -735,8 +803,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -747,8 +814,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -759,8 +825,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -771,8 +836,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -783,8 +847,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -795,8 +858,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -807,8 +869,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -819,8 +880,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -831,8 +891,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -843,8 +902,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -855,8 +913,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -867,8 +924,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -879,8 +935,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -891,8 +946,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -903,8 +957,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -915,8 +968,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -927,8 +979,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -939,8 +990,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -951,8 +1001,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -963,8 +1012,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -975,8 +1023,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -987,8 +1034,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -999,8 +1045,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -1011,8 +1056,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -1023,8 +1067,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -1035,8 +1078,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -1047,8 +1089,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -1059,8 +1100,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -1071,8 +1111,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -1083,8 +1122,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -1095,8 +1133,7 @@ class RetupleArray<T> extends Array<T> {
   /**
    * ## Method not available
    *
-   * Built-in array methods not available on `Result` types, convert the result
-   * to a tuple using `$tuple()` first.
+   * Built-in array methods not available on {@link Result} types.
    *
    * @deprecated
    */
@@ -1123,6 +1160,10 @@ class ResultOk<T, E>
 
     this[0] = undefined;
     this[1] = value;
+  }
+
+  [ResultLikeSymbol](): Result<T, E> {
+    return this;
   }
 
   toJSON(this: ThisOk<T>): T {
@@ -1190,18 +1231,18 @@ class ResultOk<T, E>
 
   $andAssertOr<U, F, A extends T>(
     this: ThisOk<T>,
-    def: Result<U, F>,
+    def: ResultLike<U, F>,
     condition: ((val: T) => unknown) | ((val: T) => val is A) = isTruthy,
   ): Result<T | U | A | Truthy<T>, E | F> {
-    return condition(this[1]) ? this : def;
+    return condition(this[1]) ? this : asResult(def);
   }
 
   $andAssertOrElse<U, F, A extends T>(
     this: ThisOk<T>,
-    def: (val: T) => Result<U, F>,
+    def: (val: T) => ResultLike<U, F>,
     condition: ((val: T) => unknown) | ((val: T) => val is A) = isTruthy,
   ): Result<T | U | A | Truthy<T>, E | F> {
-    return condition(this[1]) ? this : def(this[1]);
+    return condition(this[1]) ? this : asResult(def(this[1]));
   }
 
   $or(this: ThisOk<T>): ThisOk<T> {
@@ -1216,16 +1257,22 @@ class ResultOk<T, E>
     return this;
   }
 
-  $and<U, F>(this: ThisOk<T>, and: Result<U, F>): Result<U, F> {
-    return and;
+  $and<U, F>(this: ThisOk<T>, and: ResultLike<U, F>): Result<U, F> {
+    return asResult(and);
   }
 
-  $andThen<U, F>(this: ThisOk<T>, f: (val: T) => Result<U, F>): Result<U, F> {
-    return f(this[1]);
+  $andThen<U, F>(
+    this: ThisOk<T>,
+    f: (val: T) => ResultLike<U, F>,
+  ): Result<U, F> {
+    return asResult(f(this[1]));
   }
 
-  $andThrough<F>(this: ThisOk<T>, f: (val: T) => Result<any, F>): Result<T, F> {
-    const res = f(this[1]);
+  $andThrough<F>(
+    this: ThisOk<T>,
+    f: (val: T) => ResultLike<any, F>,
+  ): Result<T, F> {
+    const res = asResult(f(this[1]));
 
     return res instanceof ResultErr ? res : this;
   }
@@ -1259,13 +1306,7 @@ class ResultOk<T, E>
   }
 
   $flatten<U, F>(this: Result<Result<U, F>, E>): Result<U, F> {
-    const inner = this[1];
-
-    if (inner instanceof ResultOk || inner instanceof ResultErr) {
-      return inner as Result<U, F>;
-    }
-
-    throw new RetupleFlattenFailed(this[1]);
+    return this[1] as Result<U, F>;
   }
 
   $async(this: ThisOk<T>): ResultAsync<T, never> {
@@ -1274,10 +1315,6 @@ class ResultOk<T, E>
 
   $promise(this: ThisOk<T>): Promise<ThisOk<T>> {
     return Promise.resolve(this);
-  }
-
-  $tuple(this: ThisOk<T>): OkTuple<T> {
-    return [undefined, this[1]];
   }
 
   *$iter<U>(
@@ -1305,6 +1342,10 @@ class ResultErr<T, E>
 
     this[0] = err;
     this[1] = undefined;
+  }
+
+  [ResultLikeSymbol](): Result<T, E> {
+    return this;
   }
 
   toJSON(this: ThisErr<E>): null {
@@ -1378,12 +1419,15 @@ class ResultErr<T, E>
     return this;
   }
 
-  $or<U, F>(this: ThisErr<E>, or: Result<U, F>): Result<U, F> {
-    return or;
+  $or<U, F>(this: ThisErr<E>, or: ResultLike<U, F>): Result<U, F> {
+    return asResult(or);
   }
 
-  $orElse<U, F>(this: ThisErr<E>, f: (err: E) => Result<U, F>): Result<U, F> {
-    return f(this[0]);
+  $orElse<U, F>(
+    this: ThisErr<E>,
+    f: (err: E) => ResultLike<U, F>,
+  ): Result<U, F> {
+    return asResult(f(this[0]));
   }
 
   $orSafe<U, F>(
@@ -1440,10 +1484,6 @@ class ResultErr<T, E>
 
   $promise(this: ThisErr<E>): Promise<ThisErr<E>> {
     return Promise.resolve(this);
-  }
-
-  $tuple(this: ThisErr<E>): ErrTuple<E> {
-    return [this[0], undefined];
   }
 
   *$iter<U>(
@@ -1522,30 +1562,36 @@ class ResultAsync<T, E> {
   }
 
   /**
-   * The same as {@link Retuple.$map|$map}, except it returns `ResultAsync`.
+   * The same as {@link Retuple.$map|$map}, except it returns
+   * {@link ResultAsync}.
    */
   $map<U>(this: ResultAsync<T, E>, f: (val: T) => U): ResultAsync<U, E> {
     return new ResultAsync<U, E>(
       this.#inner.then(async (res) => {
-        return res instanceof ResultOk ? Ok(f(res[1])) : (res as ThisErr<E>);
+        return res instanceof ResultOk
+          ? new ResultOk(f(res[1]))
+          : (res as ThisErr<E>);
       }),
     );
   }
 
   /**
    * The same as {@link Retuple.$mapErr|$mapErr}, except it returns
-   * `ResultAsync`.
+   * {@link ResultAsync}.
    */
   $mapErr<F = E>(this: ResultAsync<T, E>, f: (err: E) => F): ResultAsync<T, F> {
     return new ResultAsync<T, F>(
       this.#inner.then(async (res) => {
-        return res instanceof ResultErr ? Err(f(res[0])) : (res as ThisOk<T>);
+        return res instanceof ResultErr
+          ? new ResultErr(f(res[0]))
+          : (res as ThisOk<T>);
       }),
     );
   }
 
   /**
-   * The same as {@link Retuple.$mapOr|$mapOr}, except it returns `ResultAsync`.
+   * The same as {@link Retuple.$mapOr|$mapOr}, except it returns
+   * {@link ResultAsync}.
    */
   $mapOr<U, V = U>(
     this: ResultAsync<T, E>,
@@ -1554,14 +1600,16 @@ class ResultAsync<T, E> {
   ): ResultAsync<U | V, never> {
     return new ResultAsync<U | V, never>(
       this.#inner.then(async (res) => {
-        return res instanceof ResultOk ? Ok(f(res[1])) : Ok(def);
+        return res instanceof ResultOk
+          ? new ResultOk<U | V, never>(f(res[1]))
+          : new ResultOk(def);
       }),
     );
   }
 
   /**
    * The same as {@link Retuple.$mapOrElse|$mapOrElse}, except it returns
-   * `ResultAsync`.
+   * {@link ResultAsync}.
    */
   $mapOrElse<U, V = U>(
     this: ResultAsync<T, E>,
@@ -1570,7 +1618,9 @@ class ResultAsync<T, E> {
   ): ResultAsync<U | V, never> {
     return new ResultAsync<U | V, never>(
       this.#inner.then(async (res) => {
-        return res instanceof ResultOk ? Ok(f(res[1])) : Ok(def(res[0] as E));
+        return res instanceof ResultOk
+          ? new ResultOk<U | V, never>(f(res[1]))
+          : new ResultOk(def(res[0] as E));
       }),
     );
   }
@@ -1579,34 +1629,34 @@ class ResultAsync<T, E> {
    * The same as {@link Retuple.$andAssertOr|$andAssertOr}, except it:
    *
    * - can also accept a `PromiseLike` default value;
-   * - returns `ResultAsync`.
+   * - returns {@link ResultAsync}.
    */
   $andAssertOr<U = T, F = E>(
     this: ResultAsync<T, E>,
-    def: RetupleAwaitable<U, F>,
+    def: ResultLikeAwaitable<U, F>,
   ): ResultAsync<Truthy<T> | U, E | F>;
   $andAssertOr<U = T, F = E, A extends T = T>(
     this: ResultAsync<T, E>,
-    def: RetupleAwaitable<U, F>,
+    def: ResultLikeAwaitable<U, F>,
     predicate: (val: T) => val is A,
   ): ResultAsync<U | A, E | F>;
   $andAssertOr<U = T, F = E>(
     this: ResultAsync<T, E>,
-    def: RetupleAwaitable<U, F>,
+    def: ResultLikeAwaitable<U, F>,
     condition: (val: T) => unknown,
   ): ResultAsync<T | U, E | F>;
   $andAssertOr<U, F, A extends T>(
     this: ResultAsync<T, E>,
-    def: Result<U, F> | PromiseLike<Result<U, F>>,
+    def: ResultLikeAwaitable<T, E>,
     condition: ((val: T) => unknown) | ((val: T) => val is A) = isTruthy,
   ): ResultAsync<T | U | A | Truthy<T>, E | F> {
     return new ResultAsync<T | U | A | Truthy<T>, E | F>(
       this.#inner.then(async (res) => {
         if (res instanceof ResultErr || condition(res[1] as T)) {
-          return res as Result<T | U, E>;
+          return res;
         }
 
-        return await def;
+        return asResult(await def);
       }),
     );
   }
@@ -1615,34 +1665,34 @@ class ResultAsync<T, E> {
    * The same as {@link Retuple.$andAssertOrElse|$andAssertOrElse}, except it:
    *
    * - can also accept an `async` default function;
-   * - returns `ResultAsync`.
+   * - returns {@link ResultAsync}.
    */
   $andAssertOrElse<U = T, F = E>(
     this: ResultAsync<T, E>,
-    def: (val: T) => RetupleAwaitable<U, F>,
+    def: (val: T) => ResultLikeAwaitable<U, F>,
   ): ResultAsync<Truthy<T> | U, E | F>;
   $andAssertOrElse<U = T, F = E, A extends T = T>(
     this: ResultAsync<T, E>,
-    def: (val: T) => RetupleAwaitable<U, F>,
+    def: (val: T) => ResultLikeAwaitable<U, F>,
     predicate: (val: T) => val is A,
   ): ResultAsync<U | A, E | F>;
   $andAssertOrElse<U = T, F = E>(
     this: ResultAsync<T, E>,
-    def: (val: T) => RetupleAwaitable<U, F>,
+    def: (val: T) => ResultLikeAwaitable<U, F>,
     condition: (val: T) => unknown,
   ): ResultAsync<T | U, E | F>;
   $andAssertOrElse<U, F, A extends T>(
     this: ResultAsync<T, E>,
-    def: (val: T) => Result<U, F> | PromiseLike<Result<U, F>>,
+    def: (val: T) => ResultLikeAwaitable<T, E>,
     condition: ((val: T) => unknown) | ((val: T) => val is A) = isTruthy,
   ): ResultAsync<T | U | A | Truthy<T>, E | F> {
     return new ResultAsync<T | U | A | Truthy<T>, E | F>(
       this.#inner.then(async (res) => {
         if (res instanceof ResultErr || condition(res[1] as T)) {
-          return res as Result<T | U, E>;
+          return res;
         }
 
-        return await def(res[1] as T);
+        return asResult(await def(res[1] as T));
       }),
     );
   }
@@ -1651,19 +1701,21 @@ class ResultAsync<T, E> {
    * The same as {@link Retuple.$or|$or}, except it:
    *
    * - can also accept a `PromiseLike` or value;
-   * - returns `ResultAsync`.
+   * - returns {@link ResultAsync}.
    */
   $or<U = T, F = E>(
     this: ResultAsync<T, E>,
-    or: Retuple<U, F> | PromiseLike<Retuple<U, F>>,
+    or: ResultLikeAwaitable<U, F>,
   ): ResultAsync<T | U, F>;
   $or<U, F>(
     this: ResultAsync<T, E>,
-    or: Result<U, F> | PromiseLike<Result<U, F>>,
+    or: ResultLikeAwaitable<U, F>,
   ): ResultAsync<T | U, F> {
     return new ResultAsync<T | U, F>(
       this.#inner.then(async (res) => {
-        return res instanceof ResultErr ? await or : (res as ThisOk<T>);
+        return res instanceof ResultErr
+          ? asResult(await or)
+          : (res as ThisOk<T>);
       }),
     );
   }
@@ -1672,20 +1724,20 @@ class ResultAsync<T, E> {
    * The same as {@link Retuple.$orElse|$orElse}, except it:
    *
    * - can also accept an `async` or function;
-   * - returns `ResultAsync`.
+   * - returns {@link ResultAsync}.
    */
   $orElse<U = T, F = E>(
     this: ResultAsync<T, E>,
-    f: (err: E) => RetupleAwaitable<U, F>,
+    f: (err: E) => ResultLikeAwaitable<U, F>,
   ): ResultAsync<T | U, F>;
   $orElse<U = never, F = never>(
     this: ResultAsync<T, E>,
-    f: (err: E) => Result<U, F> | PromiseLike<Result<U, F>>,
+    f: (err: E) => ResultLikeAwaitable<U, F>,
   ): ResultAsync<T | U, F> {
     return new ResultAsync<T | U, F>(
       this.#inner.then(async (res) => {
         return res instanceof ResultErr
-          ? await f(res[0] as E)
+          ? asResult(await f(res[0] as E))
           : (res as ThisOk<T>);
       }),
     );
@@ -1695,7 +1747,7 @@ class ResultAsync<T, E> {
    * The same as {@link Retuple.$orSafe|$orSafe}, except it:
    *
    * - can also accept an `async` safe function;
-   * - returns `ResultAsync`.
+   * - returns {@link ResultAsync}.
    */
   $orSafe<U = T>(
     this: ResultAsync<T, E>,
@@ -1718,16 +1770,26 @@ class ResultAsync<T, E> {
         }
 
         try {
-          return Ok(await f(res[0] as E));
+          return new ResultOk(await f(res[0] as E));
         } catch (err) {
-          return Err(mapError(err));
+          return new ResultErr(mapError(err));
         }
       }),
     );
   }
 
   /**
-   * @TODO
+   * Returns {@link ResultAsync} based on the outcome of the promise when this
+   * result is `Err`.
+   *
+   * Otherwise, returns `Ok` containing the current contained value.
+   *
+   * Uses the same strategy as {@link Result.$safePromise}, equivalent to
+   * calling:
+   *
+   * ```ts
+   * resultAsync.$orElse(() => Result.$safePromise(...))
+   * ```
    */
   $orSafePromise<U = T>(
     this: ResultAsync<T, E>,
@@ -1750,9 +1812,9 @@ class ResultAsync<T, E> {
         }
 
         try {
-          return Ok(await promise);
+          return new ResultOk(await promise);
         } catch (err) {
-          return Err(mapError(err));
+          return new ResultErr(mapError(err));
         }
       }),
     );
@@ -1762,19 +1824,21 @@ class ResultAsync<T, E> {
    * The same as {@link Retuple.$and|$and}, except it:
    *
    * - can also accept a `PromiseLike` and value;
-   * - returns `ResultAsync`.
+   * - returns {@link ResultAsync}.
    */
   $and<U = T, F = E>(
     this: ResultAsync<T, E>,
-    and: RetupleAwaitable<U, F>,
+    and: ResultLikeAwaitable<U, F>,
   ): ResultAsync<U, E | F>;
   $and<U, F>(
     this: ResultAsync<T, E>,
-    and: Result<U, F> | PromiseLike<Result<U, F>>,
+    and: ResultLikeAwaitable<U, F>,
   ): ResultAsync<U, E | F> {
     return new ResultAsync<U, E | F>(
       this.#inner.then(async (res) => {
-        return res instanceof ResultOk ? await and : (res as ThisErr<E>);
+        return res instanceof ResultOk
+          ? asResult(await and)
+          : (res as ThisErr<E>);
       }),
     );
   }
@@ -1783,19 +1847,21 @@ class ResultAsync<T, E> {
    * The same as {@link Retuple.$andThen|$andThen}, except it:
    *
    * - can also accept an `async` and function;
-   * - returns `ResultAsync`.
+   * - returns {@link ResultAsync}.
    */
   $andThen<U = T, F = E>(
     this: ResultAsync<T, E>,
-    f: (val: T) => RetupleAwaitable<U, F>,
+    f: (val: T) => ResultLikeAwaitable<U, F>,
   ): ResultAsync<U, E | F>;
   $andThen<U, F>(
     this: ResultAsync<T, E>,
-    f: (val: T) => Result<U, F> | PromiseLike<Result<U, F>>,
+    f: (val: T) => ResultLikeAwaitable<U, F>,
   ): ResultAsync<U, E | F> {
     return new ResultAsync<U, E | F>(
       this.#inner.then(async (res) => {
-        return res instanceof ResultOk ? await f(res[1]) : (res as ThisErr<E>);
+        return res instanceof ResultOk
+          ? asResult(await f(res[1]))
+          : (res as ThisErr<E>);
       }),
     );
   }
@@ -1804,20 +1870,20 @@ class ResultAsync<T, E> {
    * The same as {@link Retuple.$andThrough|$andThrough}, except it:
    *
    * - can also accept an `async` through function;
-   * - returns `ResultAsync`.
+   * - returns {@link ResultAsync}.
    */
   $andThrough<F = E>(
     this: ResultAsync<T, E>,
-    f: (val: T) => RetupleAwaitable<any, F>,
+    f: (val: T) => ResultLikeAwaitable<any, F>,
   ): ResultAsync<T, E | F>;
   $andThrough<F>(
     this: ResultAsync<T, E>,
-    f: (val: T) => Result<any, F> | PromiseLike<Result<any, F>>,
+    f: (val: T) => ResultLikeAwaitable<any, F>,
   ): ResultAsync<T, E | F> {
     return new ResultAsync(
       this.#inner.then(async (res) => {
         if (res instanceof ResultOk) {
-          const through = await f(res[1]);
+          const through = asResult(await f(res[1]));
 
           if (through instanceof ResultErr) {
             return through;
@@ -1833,7 +1899,7 @@ class ResultAsync<T, E> {
    * The same as {@link Retuple.$andSafe|$andSafe}, except it:
    *
    * - can also accept an `async` safe function;
-   * - returns `ResultAsync`.
+   * - returns {@link ResultAsync}.
    */
   $andSafe<U = T>(
     this: ResultAsync<T, E>,
@@ -1865,7 +1931,17 @@ class ResultAsync<T, E> {
   }
 
   /**
-   * @TODO
+   * Returns {@link ResultAsync} based on the outcome of the promise when this
+   * result is `Ok`.
+   *
+   * Otherwise, returns `Err` containing the current error value.
+   *
+   * Uses the same strategy as {@link Result.$safePromise}, equivalent to
+   * calling:
+   *
+   * ```ts
+   * resultAsync.$andThen(() => Result.$safePromise(...))
+   * ```
    */
   $andSafePromise<U = T>(
     this: ResultAsync<T, E>,
@@ -1900,7 +1976,7 @@ class ResultAsync<T, E> {
    * The same as {@link Retuple.$peek|$peek}, except it:
    *
    * - awaits the peek function;
-   * - returns `ResultAsync`.
+   * - returns {@link ResultAsync}.
    */
   $peek(
     this: ResultAsync<T, E>,
@@ -1919,7 +1995,7 @@ class ResultAsync<T, E> {
    * The same as {@link Retuple.$tap|$tap}, except it:
    *
    * - awaits the tap function;
-   * - returns `ResultAsync`.
+   * - returns {@link ResultAsync}.
    */
   $tap(this: ResultAsync<T, E>, f: (val: T) => any): ResultAsync<T, E> {
     return new ResultAsync(
@@ -1937,7 +2013,7 @@ class ResultAsync<T, E> {
    * The same as {@link Retuple.$tapErr|$tapErr}, except it:
    *
    * - awaits the tap error function;
-   * - returns `ResultAsync`.
+   * - returns {@link ResultAsync}.
    */
   $tapErr(this: ResultAsync<T, E>, f: (err: E) => any): ResultAsync<T, E> {
     return new ResultAsync(
@@ -1959,16 +2035,7 @@ class ResultAsync<T, E> {
   }
 
   /**
-   * The same as {@link Retuple.$tuple|$tuple}, except it returns a `Promise`.
-   */
-  async $tuple(
-    this: ResultAsync<T, E>,
-  ): Promise<[err: E | undefined, value: T | undefined]> {
-    return (await this.#inner).$tuple();
-  }
-
-  /**
-   * The same as {@link Retuple.$tuple|$iter}, except it returns a `Promise`.
+   * The same as {@link Retuple.$iter|$iter}, except it returns a `Promise`.
    */
   async $iter<U>(
     this: ResultAsync<Iterable<U>, E>,
@@ -1977,14 +2044,8 @@ class ResultAsync<T, E> {
   }
 }
 
-interface ResultRetryMonitor<E> {
-  error: E;
-  attempt: number;
-  abort: () => void;
-}
-
 /**
- * @TODO
+ * ## ResultRetry
  */
 class ResultRetry<T, E> implements PromiseLike<Result<T, E>> {
   private static MAX_TIMEOUT = 3_600_000 as const;
@@ -2008,7 +2069,7 @@ class ResultRetry<T, E> implements PromiseLike<Result<T, E>> {
     return 0;
   }
 
-  #f: () => Result<T, E> | PromiseLike<Result<T, E>>;
+  #f: () => ResultLikeAwaitable<T, E>;
   #promise: Promise<Result<T, E>>;
 
   #times = 1;
@@ -2017,14 +2078,15 @@ class ResultRetry<T, E> implements PromiseLike<Result<T, E>> {
   #abort = () => (this.#aborted = true);
 
   #getDelay: (attempt: number) => number = ResultRetry.zero;
-  #errorHandler?: (state: ResultRetryMonitor<E>) => void;
+  #handler?: (controller: ResultRetryController<E>) => void | Promise<void>;
 
-  constructor(f: () => RetupleAwaitable<T, E>) {
-    this.#f = f as () => Promise<Result<T, E>>;
+  constructor(f: () => ResultLikeAwaitable<T, E>) {
+    this.#f = f;
     this.#promise = this.drain() as Promise<Result<T, E>>;
   }
 
   then<U = Result<T, E>, F = never>(
+    this: ResultRetry<T, E>,
     onfulfilled?:
       | ((value: Result<T, E>) => U | PromiseLike<U>)
       | null
@@ -2035,7 +2097,27 @@ class ResultRetry<T, E> implements PromiseLike<Result<T, E>> {
   }
 
   /**
-   * @TODO - Capped 100
+   * Sets the maximum number of times the retry function can be executed,
+   * mutating this `ResultRetry` instance.
+   *
+   * **The default value is 1 - meaning that unless set, no retries will be
+   * attempted.**
+   *
+   * The retry function can be called up to the maximum number of times until
+   * it returns `Ok`. If it never returns `Ok`, the  most recent `Err` is
+   * returned.
+   *
+   * This function accepts a positive integer between 1 and 100:
+   *
+   * - Integers outside of this range are clamped to the nearest valid value;
+   * - Any other value (NaN, Infinity, fractions, strings) are treated as 1.
+   *
+   * @example
+   *
+   * ```ts
+   * // Retry someResultFn up to 3 times until Ok is returned:
+   * const result = await Result.$retry(someResultFn).$times(3);
+   * ```
    */
   $times<N extends number>(
     this: ResultRetry<T, E>,
@@ -2050,7 +2132,29 @@ class ResultRetry<T, E> implements PromiseLike<Result<T, E>> {
   }
 
   /**
-   * @TODO - Capped 1 hour
+   * Sets the delay between each retry attempt, mutating this `ResultRetry`
+   * instance.
+   *
+   * - Provide a number of milliseconds to introduce a static delay between
+   *   attempts;
+   * - Provide a function to compute the delay dynamically for each attempt;
+   * - If the maximum number of retries is 1, this setting as no effect.
+   *
+   * **The default value is 0 - meaning that unless set, there will be no delay
+   * between attempts.**
+   *
+   * This function accepts an integer between 0 and 3600000:
+   *
+   * - Integers outside of this range are clamped to the nearest valid value;
+   * - Any other value (NaN, Infinity, fractions, strings) are treated as 0.
+   *
+   * @example
+   *
+   * ```ts
+   * // Retry someResultFn up to 3 times until Ok is returned,
+   * // with a 1 second delay between each invocation:
+   * const result = await Result.$retry(someResultFn).$times(3).$delay(1000);
+   * ```
    */
   $delay<N extends number>(
     this: ResultRetry<T, E>,
@@ -2080,26 +2184,77 @@ class ResultRetry<T, E> implements PromiseLike<Result<T, E>> {
   }
 
   /**
-   * @TODO
+   * Sets a handler to be called when an attempt returns `Err`, mutating this
+   * `ResultRetry` instance. The handler can be used to capture information
+   * about each failure, and to abort early and prevent further retries.
+   *
+   * The handler function is called with `ResultRetryHandleState`, containing:
+   *
+   * - **error** - The error value from the last failed attempt;
+   * - **attempt** - The attempt number;
+   * - **abort** - A function which when called, prevents further retries.
+   *
+   * @example
+   *
+   * ```ts
+   * // Retry someResultFn up to 3 times until Ok is returned, logging each
+   * // attempt and aborting early if the error code is "UNAUTHORIZED".
+   * const result = await Result.$retry(someResultFn)
+   *    .$times(3)
+   *    .$handle(({ error, attempt, abort }) => {
+   *       console.info(`Attempt ${attempt} failed: ${error}`);
+   *       if (error === "UNAUTHORIZED") {
+   *          abort();
+   *       }
+   *    });
+   * ```
    */
-  $monitor(f: (state: ResultRetryMonitor<E>) => void): ResultRetry<T, E> {
-    this.#errorHandler = f;
+  $handle(
+    f: (controller: ResultRetryController<E>) => void,
+  ): ResultRetry<T, E> {
+    this.#handler = f;
 
     return this;
   }
 
   /**
-   * @TODO
+   * Returns {@link ResultAsync} which resolves to this retried {@link Result}.
+   *
+   * @example
+   *
+   * ```ts
+   * const result: Result<string, SomeError> = await Result
+   *    .$retry(someResultFn)
+   *    .$times(3)
+   *    .$delay(100)
+   *    .$async()
+   *    .$andThen((message) => `Success: ${message}`)
+   *    .$mapErr((code) => new SomeError({ code }));
+   * ```
    */
   $async(this: ResultRetry<T, E>): ResultAsync<T, E> {
     return new ResultAsync(this);
   }
 
-  private async drain(
-    this: ResultRetry<T, E>,
-  ): Promise<Result<T, E> | undefined> {
+  /**
+   * Returns a `Promise` which resolves to this retried {@link Result}.
+   *
+   * @example
+   *
+   * ```ts
+   * const promise: Promise<Result<string, Error>> = Result
+   *    .$retry(someResultFn)
+   *    .$times(3)
+   *    .$promise();
+   * ```
+   */
+  $promise(this: ResultRetry<T, E>): Promise<Result<T, E>> {
+    return Promise.resolve(this);
+  }
+
+  private async drain(this: ResultRetry<T, E>): Promise<Result<T, E>> {
     while (this.#attempt < this.#times) {
-      const result = await this.#f();
+      const result = asResult(await this.#f());
 
       this.#attempt++;
 
@@ -2107,15 +2262,15 @@ class ResultRetry<T, E> implements PromiseLike<Result<T, E>> {
         return result;
       }
 
-      if (this.#errorHandler) {
-        await this.#errorHandler({
+      if (this.#handler) {
+        await this.#handler({
           error: result[0] as E,
           attempt: this.#attempt,
           abort: this.#abort,
         });
       }
 
-      if (this.#aborted || this.#attempt === this.#times) {
+      if (this.#aborted || this.#attempt >= this.#times) {
         return result;
       }
 
@@ -2125,7 +2280,14 @@ class ResultRetry<T, E> implements PromiseLike<Result<T, E>> {
         await ResultRetry.delay(delay);
       }
     }
+
+    /* v8 ignore next */
+    throw new Error("Retuple: Unreachable code executed");
   }
+}
+
+function asResult<T, E>(resultLike: ResultLike<T, E>): Result<T, E> {
+  return resultLike[ResultLikeSymbol]();
 }
 
 function ensureError<E = Error>(err: unknown): E {
@@ -2133,7 +2295,7 @@ function ensureError<E = Error>(err: unknown): E {
     return err as E;
   }
 
-  return new RetupleThrownValueError(err) as E;
+  return new RetupleCaughtValueError(err) as E;
 }
 
 function mapTrue<E>(): E {
@@ -2144,7 +2306,9 @@ function isTruthy<T>(val: T): val is Truthy<T> {
   return !!val;
 }
 
-interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
+interface Retuple<T, E>
+  extends RetupleArray<T | E | undefined>,
+    ResultLike<T, E> {
   /**
    * Returns true when this result is `Ok`. Acts as a type guard.
    *
@@ -2543,16 +2707,16 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
    */
   $andAssertOr<U = T, F = E>(
     this: Result<T, E>,
-    def: Result<U, F>,
+    def: ResultLike<U, F>,
   ): Result<Truthy<T> | U, E | F>;
   $andAssertOr<U = T, F = E, A extends T = T>(
     this: Result<T, E>,
-    def: Result<U, F>,
+    def: ResultLike<U, F>,
     predicate: (val: T) => val is A,
   ): Result<U | A, E | F>;
   $andAssertOr<U = T, F = E>(
     this: Result<T, E>,
-    def: Result<U, F>,
+    def: ResultLike<U, F>,
     condition: (val: T) => unknown,
   ): Result<T | U, E | F>;
 
@@ -2638,16 +2802,16 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
    */
   $andAssertOrElse<U = T, F = E>(
     this: Result<T, E>,
-    def: (val: T) => Result<U, F>,
+    def: (val: T) => ResultLike<U, F>,
   ): Result<Truthy<T> | U, E | F>;
   $andAssertOrElse<U = T, F = E, A extends T = T>(
     this: Result<T, E>,
-    def: (val: T) => Result<U, F>,
+    def: (val: T) => ResultLike<U, F>,
     predicate: (val: T) => val is A,
   ): Result<U | A, E | F>;
   $andAssertOrElse<U = T, F = E>(
     this: Result<T, E>,
-    def: (val: T) => Result<U, F>,
+    def: (val: T) => ResultLike<U, F>,
     condition: (val: T) => unknown,
   ): Result<T | U, E | F>;
 
@@ -2813,7 +2977,7 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
    * );
    * ```
    */
-  $or<U = T, F = E>(this: Result<T, E>, or: Result<U, F>): Result<T | U, F>;
+  $or<U = T, F = E>(this: Result<T, E>, or: ResultLike<U, F>): Result<T | U, F>;
 
   /**
    * Returns the result returned by the or function, when this result is `Err`.
@@ -2852,12 +3016,12 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
    */
   $orElse<U = T, F = E>(
     this: Result<T, E>,
-    f: (err: E) => Result<U, F>,
+    f: (err: E) => ResultLike<U, F>,
   ): Result<T | U, F>;
 
   /**
-   * Returns a `Result` based on the outcome of the safe function when this
-   * result is `Err`.
+   * Returns a {@link Result} based on the outcome of the safe function when
+   * this result is `Err`.
    *
    * Otherwise, returns `Ok` containing the current ok value.
    *
@@ -2906,7 +3070,10 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
    * );
    * ```
    */
-  $and<U = T, F = E>(this: Result<T, E>, and: Result<U, F>): Result<U, E | F>;
+  $and<U = T, F = E>(
+    this: Result<T, E>,
+    and: ResultLike<U, F>,
+  ): Result<U, E | F>;
 
   /**
    * Returns the and result, when this result is `Ok`.
@@ -2945,7 +3112,7 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
    */
   $andThen<U = T, F = E>(
     this: Result<T, E>,
-    f: (val: T) => Result<U, F>,
+    f: (val: T) => ResultLike<U, F>,
   ): Result<U, E | F>;
 
   /**
@@ -2989,7 +3156,7 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
    */
   $andThrough<F = E>(
     this: Result<T, E>,
-    f: (val: T) => Result<any, F>,
+    f: (val: T) => ResultLike<any, F>,
   ): Result<T, E | F>;
 
   /**
@@ -2998,8 +3165,11 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
    *
    * Otherwise, returns `Err` containing the current error value.
    *
-   * Uses the same strategy as {@link Result.$safe}, equivalent to calling
-   * `result.$and(Result.$safe(...))`.
+   * Uses the same strategy as {@link Result.$safe}, equivalent to calling:
+   *
+   * ```ts
+   * result.$andThen(() => Result.$safe(...))
+   * ```
    */
   $andSafe<U = T>(this: Result<T, E>, f: (val: T) => U): Result<U, E | Error>;
   $andSafe<U = T, F = E>(
@@ -3009,12 +3179,8 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
   ): Result<U, E | F>;
 
   /**
-   * @TODO
-   */
-  // $andSafePromise
-
-  /**
-   * Calls the peek function and returns `Result` equivalent to this result.
+   * Calls the peek function and returns {@link Result} equivalent to this
+   * result.
    *
    * @example
    *
@@ -3113,7 +3279,7 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
   $tapErr(this: Result<T, E>, f: (err: E) => void): Result<T, E>;
 
   /**
-   * Returns the contained `Result` when this result is `Ok`.
+   * Returns the contained {@link Result} when this result is `Ok`.
    *
    * Otherwise returns `Err` containing the current error value.
    *
@@ -3145,7 +3311,7 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
   $flatten<U, F>(this: Result<Result<U, F>, E>): Result<U, E | F>;
 
   /**
-   * Returns an equivalent `ResultAsync`.
+   * Returns an equivalent {@link ResultAsync}.
    *
    * @example
    *
@@ -3180,25 +3346,6 @@ interface Retuple<T, E> extends RetupleArray<T | E | undefined> {
    * ```
    */
   $promise(this: Result<T, E>): Promise<Result<T, E>>;
-
-  /**
-   * Returns a two-element, standard array tuple equivalent to this result.
-   *
-   * @example
-   *
-   * ```ts
-   * const result = Ok("test");
-   * assert.deepEqual(result.$tuple(), [undefined, "test"]);
-   * ```
-   *
-   * @example
-   *
-   * ```ts
-   * const result = Err("test");
-   * assert.deepEqual(result.$tuple(), ["test", undefined]);
-   * ```
-   */
-  $tuple(this: Result<T, E>): [err: E | undefined, value: T | undefined];
 
   /**
    * Returns an `IterableIterator` over the contained ok value, when this
@@ -3253,7 +3400,9 @@ type ErrTuple<E> = [err: E, value: undefined];
 type ThisOk<T> = OkTuple<T> & Retuple<T, never>;
 type ThisErr<E> = ErrTuple<E> & Retuple<never, E>;
 
-type RetupleAwaitable<T, E> = Retuple<T, E> | PromiseLike<Retuple<T, E>>;
+type ResultLikeAwaitable<T, E> =
+  | ResultLike<T, E>
+  | PromiseLike<ResultLike<T, E>>;
 
 type ObjectUnionOk<T> = { success: true; data: T; error?: never | undefined };
 type ObjectUnionErr<E> = { success: false; data?: never | undefined; error: E };

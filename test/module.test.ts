@@ -46,13 +46,13 @@ describe("Module", () => {
       });
     });
 
-    describe("RetupleThrownValueError", () => {
+    describe("RetupleCaughtValueError", () => {
       it("should be exported", () => {
-        expect(rt.RetupleThrownValueError).toBeTypeOf("function");
+        expect(rt.RetupleCaughtValueError).toBeTypeOf("function");
       });
 
       it("should extend Error", () => {
-        expect(rt.RetupleThrownValueError.prototype).toBeInstanceOf(Error);
+        expect(rt.RetupleCaughtValueError.prototype).toBeInstanceOf(Error);
       });
     });
 
@@ -63,26 +63,6 @@ describe("Module", () => {
 
       it("should extend Error", () => {
         expect(rt.RetupleInvalidUnionError.prototype).toBeInstanceOf(Error);
-      });
-    });
-
-    describe("RetupleInvalidResultError", () => {
-      it("should be exported", () => {
-        expect(rt.RetupleInvalidResultError).toBeTypeOf("function");
-      });
-
-      it("should extend Error", () => {
-        expect(rt.RetupleInvalidResultError.prototype).toBeInstanceOf(Error);
-      });
-    });
-
-    describe("RetupleFlattenFailed", () => {
-      it("should be exported", () => {
-        expect(rt.RetupleFlattenFailed).toBeTypeOf("function");
-      });
-
-      it("should extend Error", () => {
-        expect(rt.RetupleFlattenFailed.prototype).toBeInstanceOf(Error);
       });
     });
 
@@ -108,12 +88,24 @@ describe("Module", () => {
       expect(Object.isFrozen(rt.Result)).toBe(true);
     });
 
+    it("should include the $from function", () => {
+      expect(rt.Result.$from).toBeTypeOf("function");
+    });
+
+    it("should include the $resolve function", () => {
+      expect(rt.Result.$resolve).toBeTypeOf("function");
+    });
+
     it("should include the $nonNullable function", () => {
       expect(rt.Result.$nonNullable).toBeTypeOf("function");
     });
 
     it("should include the $truthy function", () => {
       expect(rt.Result.$truthy).toBeTypeOf("function");
+    });
+
+    it("should include the $fromUnion function", () => {
+      expect(rt.Result.$fromUnion).toBeTypeOf("function");
     });
 
     it("should include the $safe function", () => {

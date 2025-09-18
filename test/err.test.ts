@@ -1,6 +1,12 @@
 import { vi, describe, it, expect } from "vitest";
 
-import { capture, errThrow, fnThrow } from "./util.js";
+import {
+  ResultLikeOk,
+  ResultLikeErr,
+  capture,
+  errThrow,
+  fnThrow,
+} from "./util.js";
 
 import {
   Result,
@@ -8,7 +14,7 @@ import {
   Err,
   RetupleUnwrapFailed,
   RetupleExpectFailed,
-  RetupleThrownValueError,
+  RetupleCaughtValueError,
 } from "../src/index.js";
 
 describe("Err", () => {
@@ -296,6 +302,11 @@ describe("Err", () => {
     it("should return the or Result", () => {
       expect(Err().$or(Ok("test"))).toStrictEqual(Ok("test"));
     });
+
+    it("should handle custom objects with the ResultLikeSymbol", () => {
+      expect(Err().$or(ResultLikeOk)).toStrictEqual(Ok("test"));
+      expect(Err().$or(ResultLikeErr)).toStrictEqual(Err("test"));
+    });
   });
 
   describe("$orElse", () => {
@@ -313,6 +324,11 @@ describe("Err", () => {
 
     it("should return the or Result", () => {
       expect(Err().$orElse(() => Ok("test"))).toStrictEqual(Ok("test"));
+    });
+
+    it("should handle custom objects with the ResultLikeSymbol", () => {
+      expect(Err().$orElse(() => ResultLikeOk)).toStrictEqual(Ok("test"));
+      expect(Err().$orElse(() => ResultLikeErr)).toStrictEqual(Err("test"));
     });
   });
 
@@ -351,12 +367,12 @@ describe("Err", () => {
       expect(Err().$orSafe(fnThrow)).toStrictEqual(Err(errThrow));
     });
 
-    it("should map the Err to RetupleThrownValueError when the thrown error is not an instance of Error, and when no map error function is provided", () => {
+    it("should map the Err to RetupleCaughtValueError when the thrown error is not an instance of Error, and when no map error function is provided", () => {
       expect(
         Err().$orSafe(() => {
           throw "test";
         }),
-      ).toStrictEqual(Err(new RetupleThrownValueError("test")));
+      ).toStrictEqual(Err(new RetupleCaughtValueError("test")));
     });
 
     it("should map the Err with the map error function when provided", () => {
@@ -502,13 +518,6 @@ describe("Err", () => {
 
     it("should resolve to Err with the contained value", async () => {
       await expect(Err("test").$promise()).resolves.toStrictEqual(Err("test"));
-    });
-  });
-
-  describe("$tuple", () => {
-    it("should return an equivalent tuple which is not an Err instance", () => {
-      expect(Err("test").$tuple()).not.toStrictEqual(Err("test"));
-      expect(Err("test").$tuple()).toStrictEqual([...Err("test")]);
     });
   });
 

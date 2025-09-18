@@ -1,92 +1,194 @@
 import { vi, describe, it, expect } from "vitest";
 
-import { capture, errThrow, errReject, fnThrow, fnReject } from "./util.js";
+import {
+  ResultLikeOk,
+  ResultLikeErr,
+  capture,
+  errThrow,
+  errReject,
+  fnThrow,
+  fnReject,
+} from "./util.js";
 
 import {
   Result,
   Ok,
   Err,
-  RetupleThrownValueError,
-  RetupleInvalidResultError,
+  RetupleCaughtValueError,
   RetupleInvalidUnionError,
 } from "../src/index.js";
 
 describe("Result", () => {
-  describe("Result", () => {
-    it("should throw RetupleInvalidResultError when neither value at index 0 or 1 is null or undefined", () => {
-      expect(capture(() => Result(["test", "test"] as any))).toStrictEqual(
-        new RetupleInvalidResultError(["test", "test"]),
-      );
+  it("should alias Result.$from and return itself when the result is `Ok`", () => {
+    const result = Ok("test");
 
-      expect(capture(() => Result([false, "test"] as any))).toStrictEqual(
-        new RetupleInvalidResultError([false, "test"]),
-      );
+    expect(Result(result)).toBe(result);
+  });
 
-      expect(capture(() => Result(["test", false] as any))).toStrictEqual(
-        new RetupleInvalidResultError(["test", false]),
-      );
+  it("should alias Result.$from and return itself when the result is `Err`", () => {
+    const result = Err("test");
+
+    expect(Result(result)).toBe(result);
+  });
+
+  it("should alias Result.$from and return the result obtained from calling ResultLikeSymbol", () => {
+    expect(Result(ResultLikeOk)).toStrictEqual(Ok("test"));
+    expect(Result(ResultLikeErr)).toStrictEqual(Err("test"));
+  });
+
+  describe("$from", () => {
+    it("should return itself when the result is `Ok`", () => {
+      const result = Ok("test");
+
+      expect(Result.$from(result)).toBe(result);
     });
 
-    it("should return Ok with the value at index 1, when the value at index 0 is null or undefined", () => {
-      expect(Result([undefined, "test"])).toStrictEqual(Ok("test"));
-      expect(Result([null, "test"])).toStrictEqual(Ok("test"));
+    it("should return itself when the result is `Err`", () => {
+      const result = Err("test");
+
+      expect(Result.$from(result)).toBe(result);
     });
 
-    it("should return Err with the value at index 0 when the value at index 0 is not null or undefined, and when the value at index 1 is null or undefined", () => {
-      expect(Result(["test", undefined])).toStrictEqual(Err("test"));
-      expect(Result(["test", null])).toStrictEqual(Err("test"));
+    it("should return the result obtained from calling ResultLikeSymbol", () => {
+      expect(Result.$from(ResultLikeOk)).toStrictEqual(Ok("test"));
+      expect(Result.$from(ResultLikeErr)).toStrictEqual(Err("test"));
     });
   });
 
   describe("$resolve", () => {
-    it("should return ResultAsync when the result is Ok", async () => {
+    it("should resolve to ResultAsync when the result is Ok", async () => {
       await expect(Result.$resolve(Ok("test"))).resolves.toStrictEqual(
         Ok("test"),
       );
     });
 
-    it("should return ResultAsync when the result is Err", async () => {
+    it("should resolve to ResultAsync when the result is Err", async () => {
       await expect(Result.$resolve(Err("test"))).resolves.toStrictEqual(
         Err("test"),
       );
     });
 
     it("should return itself when the result is ResultAsync", () => {
-      const result = Ok("tet").$async();
+      const result = Ok("test").$async();
 
       expect(Result.$resolve(result)).toBe(result);
     });
 
-    it("should return ResultAsync when the result is a Promise of Ok", async () => {
+    it("should resolve to Result when the result is ResultRetry", async () => {
+      await expect(
+        Result.$resolve(Result.$retry(() => Ok("test"))),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Result.$resolve(Result.$retry(() => Err("test"))),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+
+    it("should resolve to Result when the result is a Promise of Result", async () => {
       await expect(
         Result.$resolve(Promise.resolve(Ok("test"))),
       ).resolves.toStrictEqual(Ok("test"));
-    });
 
-    it("should return ResultAsync when the result is a Promise of Err", async () => {
       await expect(
         Result.$resolve(Promise.resolve(Err("test"))),
       ).resolves.toStrictEqual(Err("test"));
     });
 
-    it("should return ResultAsync when the result is a Promise of ResultAsync", async () => {
+    it("should resolve to Result when the result is a Promise of ResultAsync", async () => {
       await expect(
         Result.$resolve(Promise.resolve(Ok("test").$async())),
       ).resolves.toStrictEqual(Ok("test"));
     });
 
-    it("should return ResultAsync when the result is a thenable of Ok", async () => {
+    it("should resolve to Result when the result is a Promise of ResultRetry", async () => {
+      await expect(
+        Result.$resolve(
+          Promise.resolve(Result.$retry(() => Ok("test")).$async()),
+        ),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Result.$resolve(
+          Promise.resolve(Result.$retry(() => Err("test")).$async()),
+        ),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+
+    it("should resolve to Result when the result is a thenable of Result", async () => {
       await expect(
         Result.$resolve({
           then: (resolve: (...args: any[]) => any) => resolve(Ok("test")),
         }),
       ).resolves.toStrictEqual(Ok("test"));
-    });
 
-    it("should return ResultAsync when the result is a thenable of Err", async () => {
       await expect(
         Result.$resolve({
           then: (resolve: (...args: any[]) => any) => resolve(Err("test")),
+        }),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+
+    it("should resolve to Result when the result is a thenable of ResultAsync", async () => {
+      await expect(
+        Result.$resolve({
+          then: (resolve: (...args: any[]) => any) =>
+            resolve(Ok("test").$async()),
+        }),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Result.$resolve({
+          then: (resolve: (...args: any[]) => any) => resolve(Err("test")),
+        }),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+
+    it("should resolve to Result when the result is a thenable of ResultRetry", async () => {
+      await expect(
+        Result.$resolve({
+          then: (resolve: (...args: any[]) => any) =>
+            resolve(Result.$retry(() => Ok("test"))),
+        }),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Result.$resolve({
+          then: (resolve: (...args: any[]) => any) =>
+            resolve(Result.$retry(() => Err("test"))),
+        }),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+
+    it("should resolve to Result when the result has the ResultLikeSymbol function", async () => {
+      await expect(Result.$resolve(ResultLikeOk)).resolves.toStrictEqual(
+        Ok("test"),
+      );
+
+      await expect(Result.$resolve(ResultLikeErr)).resolves.toStrictEqual(
+        Err("test"),
+      );
+    });
+
+    it("should resolve to Result when the result is a Promise of an object with a ResultLikeSymbol function", async () => {
+      await expect(
+        Result.$resolve(Promise.resolve(ResultLikeOk)),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Result.$resolve(Promise.resolve(ResultLikeErr)),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+
+    it("should resolve to Result when the result is a thenable of an object with a ResultLikeSymbol function", async () => {
+      await expect(
+        Result.$resolve({
+          then: (resolve: (...args: any[]) => any) => resolve(ResultLikeOk),
+        }),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Result.$resolve({
+          then: (resolve: (...args: any[]) => any) => resolve(ResultLikeErr),
         }),
       ).resolves.toStrictEqual(Err("test"));
     });
@@ -179,17 +281,17 @@ describe("Result", () => {
     });
   });
 
-  describe("$union", () => {
+  describe("$fromUnion", () => {
     it("should return Ok with the data value when the success property is true", () => {
-      expect(Result.$union({ success: true, data: "test" })).toStrictEqual(
+      expect(Result.$fromUnion({ success: true, data: "test" })).toStrictEqual(
         Ok("test"),
       );
     });
 
     it("should return Err with the error value when the success property is false", () => {
-      expect(Result.$union({ success: false, error: "test" })).toStrictEqual(
-        Err("test"),
-      );
+      expect(
+        Result.$fromUnion({ success: false, error: "test" }),
+      ).toStrictEqual(Err("test"));
     });
 
     it("should throw RetupleInvalidUnionError when the success property is not boolean", () => {
@@ -199,7 +301,7 @@ describe("Result", () => {
         error: "error",
       };
 
-      expect(capture(() => Result.$union(invalid as any))).toStrictEqual(
+      expect(capture(() => Result.$fromUnion(invalid as any))).toStrictEqual(
         new RetupleInvalidUnionError(invalid),
       );
     });
@@ -230,12 +332,12 @@ describe("Result", () => {
       expect(Result.$safe(fnThrow)).toStrictEqual(Err(errThrow));
     });
 
-    it("should map the error to RetupleThrownValueError when it is not an instance of Error, and when no map error function is provided", () => {
+    it("should map the error to RetupleCaughtValueError when it is not an instance of Error, and when no map error function is provided", () => {
       expect(
         Result.$safe(() => {
           throw "test";
         }),
-      ).toStrictEqual(Err(new RetupleThrownValueError("test")));
+      ).toStrictEqual(Err(new RetupleCaughtValueError("test")));
     });
 
     it("should map the error using the map error function when provided", () => {
@@ -292,18 +394,18 @@ describe("Result", () => {
       );
     });
 
-    it("should map the error to RetupleThrownValueError when it is not an instance of Error, and when no map error function is provided", async () => {
+    it("should map the error to RetupleCaughtValueError when it is not an instance of Error, and when no map error function is provided", async () => {
       await expect(
         Result.$safeAsync(() => {
           throw "test";
         }),
-      ).resolves.toStrictEqual(Err(new RetupleThrownValueError("test")));
+      ).resolves.toStrictEqual(Err(new RetupleCaughtValueError("test")));
 
       await expect(
         Result.$safeAsync(async () => {
           throw "test";
         }),
-      ).resolves.toStrictEqual(Err(new RetupleThrownValueError("test")));
+      ).resolves.toStrictEqual(Err(new RetupleCaughtValueError("test")));
     });
 
     it("should map the error using the map error function when provided", async () => {
@@ -345,10 +447,10 @@ describe("Result", () => {
       );
     });
 
-    it("should map the error to RetupleThrownValueError when it is not an instance of Error, and when no map error function is provided", async () => {
+    it("should map the error to RetupleCaughtValueError when it is not an instance of Error, and when no map error function is provided", async () => {
       await expect(
         Result.$safePromise(Promise.reject("test")),
-      ).resolves.toStrictEqual(Err(new RetupleThrownValueError("test")));
+      ).resolves.toStrictEqual(Err(new RetupleCaughtValueError("test")));
     });
 
     it("should map the error with the map error function when provided", async () => {
@@ -415,18 +517,18 @@ describe("Result", () => {
       );
     });
 
-    it("should map the error to RetupleThrownValueError when it is not an instance of Error, and when no map error function is provided", async () => {
+    it("should map the error to RetupleCaughtValueError when it is not an instance of Error, and when no map error function is provided", async () => {
       await expect(
         Result.$safeRetry(() => {
           throw "test";
         }),
-      ).resolves.toStrictEqual(Err(new RetupleThrownValueError("test")));
+      ).resolves.toStrictEqual(Err(new RetupleCaughtValueError("test")));
 
       await expect(
         Result.$safeRetry(async () => {
           throw "test";
         }),
-      ).resolves.toStrictEqual(Err(new RetupleThrownValueError("test")));
+      ).resolves.toStrictEqual(Err(new RetupleCaughtValueError("test")));
     });
 
     it("should map the error using the map error function when provided", async () => {

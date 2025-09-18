@@ -1,14 +1,19 @@
 import { vi, describe, it, expect } from "vitest";
 
-import { capture, errThrow, fnThrow } from "./util.js";
+import {
+  ResultLikeOk,
+  ResultLikeErr,
+  capture,
+  errThrow,
+  fnThrow,
+} from "./util.js";
 
 import {
   Result,
   Ok,
   Err,
   RetupleUnwrapErrFailed,
-  RetupleThrownValueError,
-  RetupleFlattenFailed,
+  RetupleCaughtValueError,
 } from "../src/index.js";
 
 describe("Ok", () => {
@@ -265,6 +270,16 @@ describe("Ok", () => {
         Ok("default"),
       );
     });
+
+    it("should handle custom objects with the ResultLikeSymbol", () => {
+      expect(Ok().$andAssertOr(ResultLikeOk, () => false)).toStrictEqual(
+        Ok("test"),
+      );
+
+      expect(Ok().$andAssertOr(ResultLikeErr, () => false)).toStrictEqual(
+        Err("test"),
+      );
+    });
   });
 
   describe("$andAssertOrElse", () => {
@@ -353,6 +368,22 @@ describe("Ok", () => {
         ),
       ).toStrictEqual(Ok("default"));
     });
+
+    it("should handle custom objects with the ResultLikeSymbol", () => {
+      expect(
+        Ok().$andAssertOrElse(
+          () => ResultLikeOk,
+          () => false,
+        ),
+      ).toStrictEqual(Ok("test"));
+
+      expect(
+        Ok().$andAssertOrElse(
+          () => ResultLikeErr,
+          () => false,
+        ),
+      ).toStrictEqual(Err("test"));
+    });
   });
 
   describe("$or", () => {
@@ -401,6 +432,11 @@ describe("Ok", () => {
     it("should return the and Result", () => {
       expect(Ok().$and(Err("test"))).toStrictEqual(Err("test"));
     });
+
+    it("should handle custom objects with the ResultLikeSymbol", () => {
+      expect(Ok().$and(ResultLikeOk)).toStrictEqual(Ok("test"));
+      expect(Ok().$and(ResultLikeErr)).toStrictEqual(Err("test"));
+    });
   });
 
   describe("$andThen", () => {
@@ -418,6 +454,11 @@ describe("Ok", () => {
 
     it("should return the and Result", () => {
       expect(Ok().$andThen(() => Err("test"))).toStrictEqual(Err("test"));
+    });
+
+    it("should handle custom objects with the ResultLikeSymbol", () => {
+      expect(Ok().$andThen(() => ResultLikeOk)).toStrictEqual(Ok("test"));
+      expect(Ok().$andThen(() => ResultLikeErr)).toStrictEqual(Err("test"));
     });
   });
 
@@ -444,6 +485,11 @@ describe("Ok", () => {
       expect(Ok("test").$andThrough(() => Err("through"))).toStrictEqual(
         Err("through"),
       );
+    });
+
+    it("should handle custom objects with the ResultLikeSymbol", () => {
+      expect(Ok().$andThrough(() => ResultLikeOk)).toStrictEqual(Ok());
+      expect(Ok().$andThrough(() => ResultLikeErr)).toStrictEqual(Err("test"));
     });
   });
 
@@ -482,12 +528,12 @@ describe("Ok", () => {
       expect(Ok().$andSafe(fnThrow)).toStrictEqual(Err(errThrow));
     });
 
-    it("should map the error to RetupleThrownValueError when it is not an instance of Error, and when no map error function is provided", () => {
+    it("should map the error to RetupleCaughtValueError when it is not an instance of Error, and when no map error function is provided", () => {
       expect(
         Ok().$andSafe(() => {
           throw "test";
         }),
-      ).toStrictEqual(Err(new RetupleThrownValueError("test")));
+      ).toStrictEqual(Err(new RetupleCaughtValueError("test")));
     });
 
     it("should map the error with the map error function when provided", () => {
@@ -548,12 +594,6 @@ describe("Ok", () => {
   });
 
   describe("$flatten", () => {
-    it("should throw RetupleFlattenFailed when the contained value is not Ok or Err", () => {
-      expect(capture(() => Ok("test" as any).$flatten())).toStrictEqual(
-        new RetupleFlattenFailed("test"),
-      );
-    });
-
     it("should return the contained Result", () => {
       expect(Ok(Ok("test")).$flatten()).toStrictEqual(Ok("test"));
       expect(Ok(Err("test")).$flatten()).toStrictEqual(Err("test"));
@@ -579,13 +619,6 @@ describe("Ok", () => {
 
     it("should resolve to Ok with the contained value", async () => {
       await expect(Ok("test").$promise()).resolves.toStrictEqual(Ok("test"));
-    });
-  });
-
-  describe("$tuple", () => {
-    it("should return an equivalent tuple which is not an Ok instance", () => {
-      expect(Ok("test").$tuple()).not.toStrictEqual(Ok("test"));
-      expect(Ok("test").$tuple()).toStrictEqual([...Ok("test")]);
     });
   });
 

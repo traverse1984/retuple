@@ -1,13 +1,20 @@
 import { vi, describe, it, expect } from "vitest";
 
-import { errThrow, errReject, fnThrow, fnReject } from "./util.js";
+import {
+  ResultLikeOk,
+  ResultLikeErr,
+  errThrow,
+  errReject,
+  fnThrow,
+  fnReject,
+} from "./util.js";
 
 import {
   Ok,
   Err,
   RetupleUnwrapFailed,
   RetupleExpectFailed,
-  RetupleThrownValueError,
+  RetupleCaughtValueError,
 } from "../src/index.js";
 
 describe("ResultAsync (Err)", () => {
@@ -289,6 +296,24 @@ describe("ResultAsync (Err)", () => {
           .$or(Promise.resolve(Ok("test"))),
       ).resolves.toStrictEqual(Ok("test"));
     });
+
+    it("should handle custom objects with the ResultLikeSymbol", async () => {
+      await expect(Err().$async().$or(ResultLikeOk)).resolves.toStrictEqual(
+        Ok("test"),
+      );
+
+      await expect(Err().$async().$or(ResultLikeErr)).resolves.toStrictEqual(
+        Err("test"),
+      );
+
+      await expect(
+        Err().$async().$or(Promise.resolve(ResultLikeOk)),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Err().$async().$or(Promise.resolve(ResultLikeErr)),
+      ).resolves.toStrictEqual(Err("test"));
+    });
   });
 
   describe("$orElse", () => {
@@ -320,6 +345,32 @@ describe("ResultAsync (Err)", () => {
           .$async()
           .$orElse(() => Ok("test")),
       ).resolves.toStrictEqual(Ok("test"));
+    });
+
+    it("should handle custom objects with the ResultLikeSymbol", async () => {
+      await expect(
+        Err()
+          .$async()
+          .$orElse(() => ResultLikeOk),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Err()
+          .$async()
+          .$orElse(() => ResultLikeErr),
+      ).resolves.toStrictEqual(Err("test"));
+
+      await expect(
+        Err()
+          .$async()
+          .$orElse(() => Promise.resolve(ResultLikeOk)),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Err()
+          .$async()
+          .$orElse(() => Promise.resolve(ResultLikeErr)),
+      ).resolves.toStrictEqual(Err("test"));
     });
   });
 
@@ -378,14 +429,14 @@ describe("ResultAsync (Err)", () => {
       ).resolves.toStrictEqual(Err(errReject));
     });
 
-    it("should map the error to RetupleThrownValueError when it is not an instance of Error, and when no map error function is provided", async () => {
+    it("should map the error to RetupleCaughtValueError when it is not an instance of Error, and when no map error function is provided", async () => {
       await expect(
         Err()
           .$async()
           .$orSafe(() => {
             throw "test";
           }),
-      ).resolves.toStrictEqual(Err(new RetupleThrownValueError("test")));
+      ).resolves.toStrictEqual(Err(new RetupleCaughtValueError("test")));
 
       await expect(
         Err()
@@ -393,7 +444,7 @@ describe("ResultAsync (Err)", () => {
           .$orSafe(async () => {
             throw "test";
           }),
-      ).resolves.toStrictEqual(Err(new RetupleThrownValueError("test")));
+      ).resolves.toStrictEqual(Err(new RetupleCaughtValueError("test")));
     });
 
     it("should map the error with the map error function when provided", async () => {
@@ -441,10 +492,10 @@ describe("ResultAsync (Err)", () => {
       ).resolves.toStrictEqual(Err(errReject));
     });
 
-    it("should map the error to RetupleThrownValueError when it is not an instance of Error, and when no map error function is provided", async () => {
+    it("should map the error to RetupleCaughtValueError when it is not an instance of Error, and when no map error function is provided", async () => {
       await expect(
         Err().$async().$orSafePromise(Promise.reject("test")),
-      ).resolves.toStrictEqual(Err(new RetupleThrownValueError("test")));
+      ).resolves.toStrictEqual(Err(new RetupleCaughtValueError("test")));
     });
 
     it("should map the error with the map error function when provided", async () => {
@@ -643,18 +694,6 @@ describe("ResultAsync (Err)", () => {
       await expect(Err("test").$async().$promise()).resolves.toStrictEqual(
         Err("test"),
       );
-    });
-  });
-
-  describe("$tuple", () => {
-    it("should resolve to an equivalent tuple which is not an Err instance", async () => {
-      await expect(Err("test").$async().$tuple()).resolves.not.toStrictEqual(
-        Err("test"),
-      );
-
-      await expect(Err("test").$async().$tuple()).resolves.toStrictEqual([
-        ...Err("test"),
-      ]);
     });
   });
 

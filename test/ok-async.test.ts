@@ -1,12 +1,19 @@
 import { vi, describe, it, expect } from "vitest";
 
-import { errThrow, errReject, fnThrow, fnReject } from "./util.js";
+import {
+  ResultLikeOk,
+  ResultLikeErr,
+  errThrow,
+  errReject,
+  fnThrow,
+  fnReject,
+} from "./util.js";
 
 import {
   Ok,
   Err,
   RetupleUnwrapErrFailed,
-  RetupleThrownValueError,
+  RetupleCaughtValueError,
 } from "../src/index.js";
 
 describe("ResultAsync (Ok)", async () => {
@@ -245,6 +252,32 @@ describe("ResultAsync (Ok)", async () => {
           .$andAssertOr(Ok("default"), () => ""),
       ).resolves.toStrictEqual(Ok("default"));
     });
+
+    it("should handle custom objects with the ResultLikeSymbol", async () => {
+      await expect(
+        Ok()
+          .$async()
+          .$andAssertOr(ResultLikeOk, () => false),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Ok()
+          .$async()
+          .$andAssertOr(ResultLikeErr, () => false),
+      ).resolves.toStrictEqual(Err("test"));
+
+      await expect(
+        Ok()
+          .$async()
+          .$andAssertOr(Promise.resolve(ResultLikeOk), () => false),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Ok()
+          .$async()
+          .$andAssertOr(Promise.resolve(ResultLikeErr), () => false),
+      ).resolves.toStrictEqual(Err("test"));
+    });
   });
 
   describe("$andAssertOrElse", () => {
@@ -340,6 +373,44 @@ describe("ResultAsync (Ok)", async () => {
           .$async()
           .$andAssertOrElse(async () => Ok("default")),
       ).resolves.toStrictEqual(Ok("default"));
+    });
+
+    it("should handle custom objects with the ResultLikeSymbol", async () => {
+      await expect(
+        Ok()
+          .$async()
+          .$andAssertOrElse(
+            () => ResultLikeOk,
+            () => false,
+          ),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Ok()
+          .$async()
+          .$andAssertOrElse(
+            () => ResultLikeErr,
+            () => false,
+          ),
+      ).resolves.toStrictEqual(Err("test"));
+
+      await expect(
+        Ok()
+          .$async()
+          .$andAssertOrElse(
+            async () => ResultLikeOk,
+            () => false,
+          ),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Ok()
+          .$async()
+          .$andAssertOrElse(
+            async () => ResultLikeErr,
+            () => false,
+          ),
+      ).resolves.toStrictEqual(Err("test"));
     });
   });
 
@@ -455,6 +526,24 @@ describe("ResultAsync (Ok)", async () => {
           .$and(Promise.resolve(Ok("test"))),
       ).resolves.toStrictEqual(Ok("test"));
     });
+
+    it("should handle custom objects with the ResultLikeSymbol", async () => {
+      await expect(Ok().$async().$and(ResultLikeOk)).resolves.toStrictEqual(
+        Ok("test"),
+      );
+
+      await expect(Ok().$async().$and(ResultLikeErr)).resolves.toStrictEqual(
+        Err("test"),
+      );
+
+      await expect(
+        Ok().$async().$and(Promise.resolve(ResultLikeOk)),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Ok().$async().$and(Promise.resolve(ResultLikeErr)),
+      ).resolves.toStrictEqual(Err("test"));
+    });
   });
 
   describe("$andThen", () => {
@@ -486,6 +575,32 @@ describe("ResultAsync (Ok)", async () => {
           .$async()
           .$andThen(async () => Ok("test")),
       ).resolves.toStrictEqual(Ok("test"));
+    });
+
+    it("should handle custom objects with the ResultLikeSymbol", async () => {
+      await expect(
+        Ok()
+          .$async()
+          .$andThen(() => ResultLikeOk),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Ok()
+          .$async()
+          .$andThen(() => ResultLikeErr),
+      ).resolves.toStrictEqual(Err("test"));
+
+      await expect(
+        Ok()
+          .$async()
+          .$andThen(async () => ResultLikeOk),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Ok()
+          .$async()
+          .$andThen(async () => ResultLikeErr),
+      ).resolves.toStrictEqual(Err("test"));
     });
   });
 
@@ -531,6 +646,32 @@ describe("ResultAsync (Ok)", async () => {
         Ok()
           .$async()
           .$andThrough(() => Err("test")),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+
+    it("should handle custom objects with the ResultLikeSymbol", async () => {
+      await expect(
+        Ok()
+          .$async()
+          .$andThrough(() => ResultLikeOk),
+      ).resolves.toStrictEqual(Ok());
+
+      await expect(
+        Ok()
+          .$async()
+          .$andThrough(() => ResultLikeErr),
+      ).resolves.toStrictEqual(Err("test"));
+
+      await expect(
+        Ok()
+          .$async()
+          .$andThrough(async () => ResultLikeOk),
+      ).resolves.toStrictEqual(Ok());
+
+      await expect(
+        Ok()
+          .$async()
+          .$andThrough(async () => ResultLikeErr),
       ).resolves.toStrictEqual(Err("test"));
     });
   });
@@ -590,14 +731,14 @@ describe("ResultAsync (Ok)", async () => {
       ).resolves.toStrictEqual(Err(errReject));
     });
 
-    it("should map the error to RetupleThrownValueError when it is not an instance of Error, and when no map error function is provided", async () => {
+    it("should map the error to RetupleCaughtValueError when it is not an instance of Error, and when no map error function is provided", async () => {
       await expect(
         Ok()
           .$async()
           .$andSafe(() => {
             throw "test";
           }),
-      ).resolves.toStrictEqual(Err(new RetupleThrownValueError("test")));
+      ).resolves.toStrictEqual(Err(new RetupleCaughtValueError("test")));
 
       await expect(
         Ok()
@@ -605,7 +746,7 @@ describe("ResultAsync (Ok)", async () => {
           .$andSafe(async () => {
             throw "test";
           }),
-      ).resolves.toStrictEqual(Err(new RetupleThrownValueError("test")));
+      ).resolves.toStrictEqual(Err(new RetupleCaughtValueError("test")));
     });
 
     it("should map the error with the map error function when provided", async () => {
@@ -653,10 +794,10 @@ describe("ResultAsync (Ok)", async () => {
       ).resolves.toStrictEqual(Err(errReject));
     });
 
-    it("should map the error to RetupleThrownValueError when it is not an instance of Error, and when no map error function is provided", async () => {
+    it("should map the error to RetupleCaughtValueError when it is not an instance of Error, and when no map error function is provided", async () => {
       await expect(
         Ok().$async().$andSafePromise(Promise.reject("test")),
-      ).resolves.toStrictEqual(Err(new RetupleThrownValueError("test")));
+      ).resolves.toStrictEqual(Err(new RetupleCaughtValueError("test")));
     });
 
     it("should map the error with the map error function when provided", async () => {
@@ -749,18 +890,6 @@ describe("ResultAsync (Ok)", async () => {
       await expect(Ok("test").$async().$promise()).resolves.toStrictEqual(
         Ok("test"),
       );
-    });
-  });
-
-  describe("$tuple", () => {
-    it("should resolve to an equivalent tuple which is not an Ok instance", async () => {
-      await expect(Ok("test").$async().$tuple()).resolves.not.toStrictEqual(
-        Ok("test"),
-      );
-
-      await expect(Ok("test").$async().$tuple()).resolves.toStrictEqual([
-        ...Ok("test"),
-      ]);
     });
   });
 
