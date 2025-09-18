@@ -1,6 +1,6 @@
 {
   "name": "retuple",
-  "version": "1.0.0-next.14",
+  "version": "1.0.0-next.15",
   "scripts": {
     "test": "vitest",
     "lint": "eslint . --ext .ts -c eslint.config.mjs --fix",
@@ -11,12 +11,7 @@
   "main": "./dist/index.cjs",
   "types": "./dist/index.d.cts",
   "module": "./dist/index.js",
-  "zshy": {
-    "exports": {
-      ".": "./src/index.ts",
-      "./symbol": "./src/symbol.ts"
-    }
-  },
+  "zshy": "./src/index.ts",
   "keywords": [
     "result",
     "safe",
@@ -48,11 +43,6 @@
       "types": "./dist/index.d.cts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
-    },
-    "./symbol": {
-      "types": "./dist/symbol.d.cts",
-      "import": "./dist/symbol.js",
-      "require": "./dist/symbol.cjs"
     }
   },
   "files": [

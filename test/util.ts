@@ -1,5 +1,4 @@
-import { Ok, Err } from "../src/index.js";
-import { ResultLikeSymbol } from "../src/symbol.js";
+import { Ok, Err, ResultLikeSymbol } from "../src/index.js";
 
 export const ResultLikeOk = { [ResultLikeSymbol]: () => Ok("test") };
 export const ResultLikeErr = { [ResultLikeSymbol]: () => Err("test") };
