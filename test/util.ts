@@ -1,7 +1,11 @@
-import { Ok, Err, ResultLikeSymbol } from "../src/index.js";
+import { ResultLikeSymbol, type ResultLike } from "retuple-symbols";
 
-export const ResultLikeOk = { [ResultLikeSymbol]: () => Ok("test") };
-export const ResultLikeErr = { [ResultLikeSymbol]: () => Err("test") };
+export const ResultLikeOk: ResultLike<string, never> = {
+  [ResultLikeSymbol]: () => ({ ok: true, value: "test" }),
+};
+export const ResultLikeErr: ResultLike<never, string> = {
+  [ResultLikeSymbol]: () => ({ ok: false, value: "test" }),
+};
 
 export function capture(fn: () => any): any {
   try {

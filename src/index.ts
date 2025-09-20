@@ -1,43 +1,9 @@
-/**
- * ## Result Like Symbol
- *
- * Implement a custom result-like by implementing the `ResultLike` interface
- * on a class or object. An object with this implementation can be converted
- * to a `Result` and can be used in most places where a `Result` is required.
- *
- * ```ts
- * import { ResultLikeSymbol } from "retuple/symbol";
- * import { Result, Ok, Err, type ResultLike } from "retuple";
- *
- * class CustomResult<T> implements ResultLike<T, CustomError> {
- *   value: T;
- *
- *   constructor(value: T) {
- *     this.value = value;
- *   }
- *
- *   [ResultLikeSymbol](): Result<T, CustomError> {
- *     return this.value === "test"
- *       ? Ok(this.value)
- *       : Err(new CustomError("Value was not test"));
- *   }
- * }
- *
- * const custom = new CustomResult("test");
- * const result: Result<string, Error> = Result(custom);
- *
- * const chain = Ok()
- *  .$map(() => "value")
- *  .$andThen((value) => new CustomResult(value))
- *  .$or(myresult);
- * ```
- */
-export const ResultLikeSymbol = Symbol("retuple/result");
-
-export type ResultLikeSymbol = typeof ResultLikeSymbol;
-export type ResultLike<T, E> = {
-  [ResultLikeSymbol](): Result<T, E>;
-};
+import {
+  ResultLikeSymbol,
+  type ResultLike,
+  type ResultLikeOk,
+  type ResultLikeErr,
+} from "retuple-symbols";
 
 export type Ok = typeof Ok;
 export type Err = typeof Err;
@@ -258,7 +224,7 @@ function $resolve<T, E>(result: ResultLikeAwaitable<T, E>): ResultAsync<T, E> {
 
     case result instanceof ResultOk:
     case result instanceof ResultErr:
-      return new ResultAsync(Promise.resolve(result));
+      return new ResultAsync(Promise.resolve(result as Result<T, E>));
 
     default:
       return new ResultAsync<T, E>(
@@ -1198,8 +1164,8 @@ class ResultOk<T, E>
     this[1] = value;
   }
 
-  [ResultLikeSymbol](): Result<T, E> {
-    return this;
+  [ResultLikeSymbol](): ResultLikeOk<T> {
+    return { ok: true, value: this[1] } as const;
   }
 
   toJSON(this: ThisOk<T>): T {
@@ -1380,8 +1346,8 @@ class ResultErr<T, E>
     this[1] = undefined;
   }
 
-  [ResultLikeSymbol](): Result<T, E> {
-    return this;
+  [ResultLikeSymbol](): ResultLikeErr<E> {
+    return { ok: false, value: this[0] };
   }
 
   toJSON(this: ThisErr<E>): null {
@@ -2323,7 +2289,13 @@ class ResultRetry<T, E> implements PromiseLike<Result<T, E>> {
 }
 
 function asResult<T, E>(resultLike: ResultLike<T, E>): Result<T, E> {
-  return resultLike[ResultLikeSymbol]();
+  if (resultLike instanceof ResultOk || resultLike instanceof ResultErr) {
+    return resultLike;
+  }
+
+  const result = resultLike[ResultLikeSymbol]();
+
+  return result.ok ? new ResultOk(result.value) : new ResultErr(result.value);
 }
 
 function ensureError<E = Error>(err: unknown): E {

@@ -1,6 +1,6 @@
 {
   "name": "retuple",
-  "version": "1.0.0-next.15",
+  "version": "1.0.0-next.16",
   "scripts": {
     "test": "vitest",
     "lint": "eslint . --ext .ts -c eslint.config.mjs --fix",
@@ -27,16 +27,19 @@
     "type": "git",
     "url": "git+https://github.com/traverse1984/retuple.git"
   },
+  "dependencies": {
+    "retuple-symbols": "^1.0.0-next.2"
+  },
   "devDependencies": {
-    "typescript": "^5.9.2",
-    "zshy": "^0.4.1",
-    "vitest": "^3.2.4",
+    "@typescript-eslint/eslint-plugin": "^8.43.0",
+    "@typescript-eslint/parser": "^8.43.0",
     "@vitest/coverage-v8": "^3.2.4",
     "eslint": "^9.35.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
-    "@typescript-eslint/eslint-plugin": "^8.43.0",
-    "@typescript-eslint/parser": "^8.43.0"
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4",
+    "zshy": "^0.4.1"
   },
   "exports": {
     ".": {
