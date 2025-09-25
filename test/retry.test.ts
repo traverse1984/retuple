@@ -436,18 +436,18 @@ describe("ResultRetry", () => {
   });
 
   describe("$async", () => {
-    it("should return ResultAsync", () => {
+    it("should extend ResultAsync", () => {
       const prototype = Object.getPrototypeOf(Result.$safeAsync(() => {}));
 
-      expect(Result.$retry(() => Ok("test")).$async()).toBeInstanceOf(
+      expect(Result.$retry(() => Ok("test"))).toBeInstanceOf(
         prototype.constructor,
       );
     });
 
     it("should resolve to the retry function Result", async () => {
-      await expect(
-        Result.$retry(() => Ok("test")).$async(),
-      ).resolves.toStrictEqual(Ok("test"));
+      await expect(Result.$retry(() => Ok("test"))).resolves.toStrictEqual(
+        Ok("test"),
+      );
     });
   });
 

@@ -219,9 +219,6 @@ function $resolve<T, E>(result: ResultLikeAwaitable<T, E>): ResultAsync<T, E> {
     case result instanceof ResultAsync:
       return result;
 
-    case result instanceof ResultRetry:
-      return new ResultAsync(result);
-
     case result instanceof ResultOk:
     case result instanceof ResultErr:
       return new ResultAsync(Promise.resolve(result as Result<T, E>));
@@ -2152,7 +2149,10 @@ class ResultAsync<T, E> {
 /**
  * ## ResultRetry
  */
-class ResultRetry<T, E> implements PromiseLike<Result<T, E>> {
+class ResultRetry<T, E>
+  extends ResultAsync<T, E>
+  implements PromiseLike<Result<T, E>>
+{
   private static MAX_TIMEOUT = 3_600_000 as const;
   private static MAX_RETRY = 100 as const;
 
@@ -2186,6 +2186,8 @@ class ResultRetry<T, E> implements PromiseLike<Result<T, E>> {
   #handler?: (controller: ResultRetryController<E>) => void | Promise<void>;
 
   constructor(f: () => ResultLikeAwaitable<T, E>) {
+    super(Promise.resolve().then(() => this.#promise));
+
     this.#f = f;
     this.#promise = this.drain() as Promise<Result<T, E>>;
   }
@@ -2198,7 +2200,7 @@ class ResultRetry<T, E> implements PromiseLike<Result<T, E>> {
       | undefined,
     onrejected?: ((reason: any) => F | PromiseLike<F>) | null | undefined,
   ): PromiseLike<U | F> {
-    return this.#promise.then(onfulfilled, onrejected);
+    return super.then(onfulfilled, onrejected);
   }
 
   /**
@@ -2320,41 +2322,6 @@ class ResultRetry<T, E> implements PromiseLike<Result<T, E>> {
     this.#handler = f;
 
     return this;
-  }
-
-  /**
-   * Returns {@link ResultAsync} which resolves to this retried {@link Result}.
-   *
-   * @example
-   *
-   * ```ts
-   * const result: Result<string, SomeError> = await Result
-   *    .$retry(someResultFn)
-   *    .$times(3)
-   *    .$delay(100)
-   *    .$async()
-   *    .$andThen((message) => `Success: ${message}`)
-   *    .$mapErr((code) => new SomeError({ code }));
-   * ```
-   */
-  $async(this: ResultRetry<T, E>): ResultAsync<T, E> {
-    return new ResultAsync(this);
-  }
-
-  /**
-   * Returns a `Promise` which resolves to this retried {@link Result}.
-   *
-   * @example
-   *
-   * ```ts
-   * const promise: Promise<Result<string, Error>> = Result
-   *    .$retry(someResultFn)
-   *    .$times(3)
-   *    .$promise();
-   * ```
-   */
-  $promise(this: ResultRetry<T, E>): Promise<Result<T, E>> {
-    return Promise.resolve(this);
   }
 
   private async drain(this: ResultRetry<T, E>): Promise<Result<T, E>> {

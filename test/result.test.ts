@@ -102,15 +102,11 @@ describe("Result", () => {
 
     it("should resolve to Result when the result is a Promise of ResultRetry", async () => {
       await expect(
-        Result.$resolve(
-          Promise.resolve(Result.$retry(() => Ok("test")).$async()),
-        ),
+        Result.$resolve(Promise.resolve(Result.$retry(() => Ok("test")))),
       ).resolves.toStrictEqual(Ok("test"));
 
       await expect(
-        Result.$resolve(
-          Promise.resolve(Result.$retry(() => Err("test")).$async()),
-        ),
+        Result.$resolve(Promise.resolve(Result.$retry(() => Err("test")))),
       ).resolves.toStrictEqual(Err("test"));
     });
 
