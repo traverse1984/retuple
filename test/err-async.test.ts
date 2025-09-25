@@ -535,9 +535,11 @@ describe("ResultAsync (Err)", () => {
     });
 
     it("should return Err with the contained value", async () => {
-      await expect(Err("test").$async().$and(Ok())).resolves.toStrictEqual(
-        Err("test"),
-      );
+      await expect(
+        Err("test")
+          .$async()
+          .$andThen(() => Ok()),
+      ).resolves.toStrictEqual(Err("test"));
     });
   });
 
@@ -551,9 +553,11 @@ describe("ResultAsync (Err)", () => {
     });
 
     it("should return Err with the contained value", async () => {
-      await expect(Err("test").$async().$and(Ok())).resolves.toStrictEqual(
-        Err("test"),
-      );
+      await expect(
+        Err("test")
+          .$async()
+          .$andThrough(() => Ok()),
+      ).resolves.toStrictEqual(Err("test"));
     });
   });
 

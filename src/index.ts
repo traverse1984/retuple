@@ -1251,16 +1251,39 @@ class ResultOk<T, E>
     return this;
   }
 
+  $orAsync(this: ThisOk<T>): ResultAsync<T, never> {
+    return this.$async();
+  }
+
   $orElse(this: ThisOk<T>): ThisOk<T> {
     return this;
+  }
+
+  $orElseAsync(this: ThisOk<T>): ResultAsync<T, never> {
+    return this.$async();
   }
 
   $orSafe(this: ThisOk<T>): ThisOk<T> {
     return this;
   }
 
+  $orSafeAsync(this: ThisOk<T>): ResultAsync<T, never> {
+    return this.$async();
+  }
+
+  $orSafePromise(this: ThisOk<T>): ResultAsync<T, never> {
+    return this.$async();
+  }
+
   $and<U, F>(this: ThisOk<T>, and: ResultLike<U, F>): Result<U, F> {
     return asResult(and);
+  }
+
+  $andAsync<U, F>(
+    this: ThisOk<T>,
+    and: ResultLikeAwaitable<U, F>,
+  ): ResultAsync<U, F> {
+    return this.$async().$and(and);
   }
 
   $andThen<U, F>(
@@ -1268,6 +1291,13 @@ class ResultOk<T, E>
     f: (val: T) => ResultLike<U, F>,
   ): Result<U, F> {
     return asResult(f(this[1]));
+  }
+
+  $andThenAsync<U, F>(
+    this: ThisOk<T>,
+    f: (val: T) => ResultLikeAwaitable<U, F>,
+  ): ResultAsync<U, F> {
+    return this.$async().$andThen(f);
   }
 
   $andThrough<F>(
@@ -1279,16 +1309,39 @@ class ResultOk<T, E>
     return res instanceof ResultErr ? res : this;
   }
 
+  $andThroughAsync<F>(
+    this: ThisOk<T>,
+    f: (val: T) => ResultLikeAwaitable<any, F>,
+  ): ResultAsync<T, F> {
+    return this.$async().$andThrough(f);
+  }
+
   $andSafe<U, F>(
     this: ThisOk<T>,
     f: (val: T) => U,
     mapError: (err: unknown) => F = ensureError,
-  ): Result<T | U, E | F> {
+  ): Result<U, F> {
     try {
       return Ok(f(this[1]));
     } catch (err) {
       return Err(mapError(err));
     }
+  }
+
+  $andSafeAsync<U, F>(
+    this: ThisOk<T>,
+    f: (val: T) => PromiseLike<U>,
+    mapError: (err: unknown) => F = ensureError,
+  ): ResultAsync<U, F> {
+    return this.$async().$andSafe(f, mapError);
+  }
+
+  $andSafePromise<U, F>(
+    this: ThisOk<T>,
+    promise: PromiseLike<U>,
+    mapError: (err: unknown) => F = ensureError,
+  ): ResultAsync<U, F> {
+    return this.$async().$andSafePromise(promise, mapError);
   }
 
   $peek(this: ThisOk<T>, f: (res: Result<T, E>) => void): ThisOk<T> {
@@ -1425,6 +1478,13 @@ class ResultErr<T, E>
     return asResult(or);
   }
 
+  $orAsync<U, F>(
+    this: ThisErr<E>,
+    or: ResultLikeAwaitable<U, F>,
+  ): ResultAsync<U, F> {
+    return this.$async().$or(or);
+  }
+
   $orElse<U, F>(
     this: ThisErr<E>,
     f: (err: E) => ResultLike<U, F>,
@@ -1432,11 +1492,18 @@ class ResultErr<T, E>
     return asResult(f(this[0]));
   }
 
+  $orElseAsync<U, F>(
+    this: ThisErr<E>,
+    f: (err: E) => ResultLikeAwaitable<U, F>,
+  ): ResultAsync<U, F> {
+    return this.$async().$orElse(f);
+  }
+
   $orSafe<U, F>(
     this: ThisErr<E>,
     f: (err: E) => U,
     mapError: (err: unknown) => F = ensureError,
-  ): Result<T | U, E | F> {
+  ): Result<U, F> {
     try {
       return Ok(f(this[0]));
     } catch (err) {
@@ -1444,20 +1511,56 @@ class ResultErr<T, E>
     }
   }
 
+  $orSafeAsync<U = T, F = E>(
+    this: ThisErr<E>,
+    f: (err: E) => U | PromiseLike<U>,
+    mapError: (err: unknown) => F = ensureError,
+  ): ResultAsync<U, F> {
+    return this.$async().$orSafe(f, mapError);
+  }
+
+  $orSafePromise<U, F>(
+    this: ThisErr<E>,
+    promise: PromiseLike<U>,
+    mapError: (err: unknown) => F = ensureError,
+  ): ResultAsync<U, F> {
+    return this.$async().$orSafePromise(promise, mapError);
+  }
+
   $and(this: ThisErr<E>): ThisErr<E> {
     return this;
+  }
+
+  $andAsync(this: ThisErr<E>): ResultAsync<never, E> {
+    return this.$async();
   }
 
   $andThen(this: ThisErr<E>): ThisErr<E> {
     return this;
   }
 
+  $andThenAsync(this: ThisErr<E>): ResultAsync<never, E> {
+    return this.$async();
+  }
+
   $andThrough(this: ThisErr<E>): ThisErr<E> {
     return this;
   }
 
+  $andThroughAsync(this: ThisErr<E>): ResultAsync<never, E> {
+    return this.$async();
+  }
+
   $andSafe(this: ThisErr<E>): ThisErr<E> {
     return this;
+  }
+
+  $andSafeAsync(this: ThisErr<E>): ResultAsync<never, E> {
+    return this.$async();
+  }
+
+  $andSafePromise(this: ThisErr<E>): ResultAsync<never, E> {
+    return this.$async();
   }
 
   $peek(this: ThisErr<E>, f: (res: ThisErr<E>) => void): ThisErr<E> {
@@ -2988,6 +3091,14 @@ interface Retuple<T, E>
   $or<U = T, F = E>(this: Result<T, E>, or: ResultLike<U, F>): Result<T | U, F>;
 
   /**
+   * Shorthand for `result.$async().$or(...)`
+   */
+  $orAsync<U = T, F = E>(
+    this: Result<T, E>,
+    or: ResultLikeAwaitable<U, F>,
+  ): ResultAsync<T | U, F>;
+
+  /**
    * Returns the result returned by the or function, when this result is `Err`.
    *
    * Otherwise, returns `Ok` containing the current ok value.
@@ -3028,6 +3139,14 @@ interface Retuple<T, E>
   ): Result<T | U, F>;
 
   /**
+   * Shorthand for `result.$async().$orElse(...)`
+   */
+  $orElseAsync<U = T, F = E>(
+    this: Result<T, E>,
+    f: (err: E) => ResultLikeAwaitable<U, F>,
+  ): ResultAsync<T | U, F>;
+
+  /**
    * Returns a {@link Result} based on the outcome of the safe function when
    * this result is `Err`.
    *
@@ -3042,6 +3161,32 @@ interface Retuple<T, E>
     f: (err: E) => U,
     mapError: (err: unknown) => F,
   ): Result<T | U, F>;
+
+  /**
+   * Shorthand for `result.$async().$orSafe(...)`
+   */
+  $orSafeAsync<U = T>(
+    this: Result<T, E>,
+    f: (err: E) => U | PromiseLike<U>,
+  ): ResultAsync<T | U, Error>;
+  $orSafeAsync<U = T, F = E>(
+    this: Result<T, E>,
+    f: (err: E) => U | PromiseLike<U>,
+    mapError: (err: unknown) => F,
+  ): ResultAsync<T | U, F>;
+
+  /**
+   * Shorthand for `result.$async().$orSafePromise(...)`
+   */
+  $orSafePromise<U = T>(
+    this: Result<T, E>,
+    promise: PromiseLike<U>,
+  ): ResultAsync<T | U, Error>;
+  $orSafePromise<U = T, F = E>(
+    this: Result<T, E>,
+    promise: PromiseLike<U>,
+    mapError: (err: unknown) => F,
+  ): ResultAsync<T | U, F>;
 
   /**
    * Returns the and result, when this result is `Ok`.
@@ -3084,6 +3229,14 @@ interface Retuple<T, E>
   ): Result<U, E | F>;
 
   /**
+   * Shorthand for `result.$async().$and(...)`
+   */
+  $andAsync<U = T, F = E>(
+    this: Result<T, E>,
+    and: ResultLikeAwaitable<U, F>,
+  ): ResultAsync<U, E | F>;
+
+  /**
    * Returns the and result, when this result is `Ok`.
    *
    * Otherwise, returns `Err` containing the current error value.
@@ -3122,6 +3275,14 @@ interface Retuple<T, E>
     this: Result<T, E>,
     f: (val: T) => ResultLike<U, F>,
   ): Result<U, E | F>;
+
+  /**
+   * Shorthand for `result.$async().$andThen(...)`
+   */
+  $andThenAsync<U = T, F = E>(
+    this: Result<T, E>,
+    f: (val: T) => ResultLikeAwaitable<U, F>,
+  ): ResultAsync<U, E | F>;
 
   /**
    * Calls the through function when this result is `Ok` and returns:
@@ -3168,6 +3329,14 @@ interface Retuple<T, E>
   ): Result<T, E | F>;
 
   /**
+   * Shorthand for `result.$async().$andThrough(...)`
+   */
+  $andThroughAsync<F = E>(
+    this: Result<T, E>,
+    f: (val: T) => ResultLikeAwaitable<any, F>,
+  ): ResultAsync<T, E | F>;
+
+  /**
    * Returns a result based on the outcome of the safe function when this
    * result is `Ok`.
    *
@@ -3185,6 +3354,32 @@ interface Retuple<T, E>
     f: (val: T) => U,
     mapError: (err: unknown) => F,
   ): Result<U, E | F>;
+
+  /**
+   * Shorthand for `result.$async().$andSafe(...)`
+   */
+  $andSafeAsync<U = T>(
+    this: Result<T, E>,
+    f: (val: T) => U | PromiseLike<U>,
+  ): ResultAsync<U, E | Error>;
+  $andSafeAsync<U = T, F = E>(
+    this: Result<T, E>,
+    f: (val: T) => U | PromiseLike<U>,
+    mapError: (err: unknown) => F,
+  ): ResultAsync<U, E | F>;
+
+  /**
+   * Shorthand for `result.$async().$andSafePromise(...)`
+   */
+  $andSafePromise<U = T>(
+    this: Result<T, E>,
+    promise: PromiseLike<U>,
+  ): ResultAsync<U, E | Error>;
+  $andSafePromise<U = T, F = E>(
+    this: Result<T, E>,
+    promise: PromiseLike<U>,
+    mapError: (err: unknown) => F,
+  ): ResultAsync<U, E | F>;
 
   /**
    * Calls the peek function and returns {@link Result} equivalent to this

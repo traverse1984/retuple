@@ -1,11 +1,14 @@
 import { vi, describe, it, expect } from "vitest";
+import { ResultLikeSymbol } from "retuple-symbols";
 
 import {
   ResultLikeOk,
   ResultLikeErr,
   capture,
   errThrow,
+  errReject,
   fnThrow,
+  fnReject,
 } from "./util.js";
 
 import {
@@ -35,6 +38,13 @@ describe("Ok", () => {
 
   it("should use undefined as the contained value when constructed without arguments", () => {
     expect(Ok()[1]).toBe(undefined);
+  });
+
+  it("should return ResultLikeOk when ResultLikeSymbol is called", () => {
+    expect(Ok("test")[ResultLikeSymbol]()).toStrictEqual({
+      ok: true,
+      value: "test",
+    });
   });
 
   it("should JSON stringify to the JSON representation of the contained value", () => {
@@ -439,6 +449,46 @@ describe("Ok", () => {
     });
   });
 
+  describe("$and", () => {
+    it("should reject when the and promise rejects", async () => {
+      await expect(Ok().$async().$and(fnReject())).rejects.toBe(errReject);
+    });
+
+    it("should resolve to the and Result", async () => {
+      await expect(Ok().$async().$and(Ok("test"))).resolves.toStrictEqual(
+        Ok("test"),
+      );
+
+      await expect(
+        Ok().$async().$and(Ok("test").$async()),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Ok()
+          .$async()
+          .$and(Promise.resolve(Ok("test"))),
+      ).resolves.toStrictEqual(Ok("test"));
+    });
+
+    it("should handle custom objects with the ResultLikeSymbol", async () => {
+      await expect(Ok().$async().$and(ResultLikeOk)).resolves.toStrictEqual(
+        Ok("test"),
+      );
+
+      await expect(Ok().$async().$and(ResultLikeErr)).resolves.toStrictEqual(
+        Err("test"),
+      );
+
+      await expect(
+        Ok().$async().$and(Promise.resolve(ResultLikeOk)),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Ok().$async().$and(Promise.resolve(ResultLikeErr)),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+  });
+
   describe("$andThen", () => {
     it("should invoke the and function with the contained value", () => {
       const fnAnd = vi.fn(() => Err());
@@ -641,6 +691,353 @@ describe("Ok", () => {
         value: undefined,
         done: true,
       });
+    });
+  });
+
+  describe("$orAsync", () => {
+    it("should not reject when the or promise rejects", async () => {
+      const rejected = fnReject();
+
+      await expect(Ok("test").$orAsync(rejected)).resolves.toStrictEqual(
+        Ok("test"),
+      );
+
+      await rejected.catch(() => {});
+    });
+
+    it("should resolve to Ok with the contained value", async () => {
+      await expect(Ok("test").$orAsync(Ok())).resolves.toStrictEqual(
+        Ok("test"),
+      );
+    });
+  });
+
+  describe("$orElseAsync", () => {
+    it("should not invoke the or function", async () => {
+      const fnOr = vi.fn(() => Err());
+
+      await Ok().$orElseAsync(fnOr);
+
+      expect(fnOr).not.toHaveBeenCalled();
+    });
+
+    it("should resolve to Ok with the contained value", async () => {
+      await expect(Ok("test").$orElseAsync(() => Ok())).resolves.toStrictEqual(
+        Ok("test"),
+      );
+    });
+  });
+
+  describe("$orSafeAsync", () => {
+    it("should not invoke the safe function", async () => {
+      const fnSafe = vi.fn(() => {});
+
+      await Ok().$orSafeAsync(fnSafe);
+
+      expect(fnSafe).not.toHaveBeenCalled();
+    });
+
+    it("should not invoke the map error function", async () => {
+      const fnMapError = vi.fn(() => {});
+
+      await Ok().$orSafeAsync(fnThrow, fnMapError);
+      await Ok().$orSafeAsync(fnReject, fnMapError);
+
+      expect(fnMapError).not.toHaveBeenCalled();
+    });
+
+    it("should resolve to Ok with the contained value", async () => {
+      await expect(Ok("test").$orSafeAsync(() => {})).resolves.toStrictEqual(
+        Ok("test"),
+      );
+    });
+  });
+
+  describe("$orSafePromise", () => {
+    it("should not invoke the map error function", async () => {
+      const fnMapError = vi.fn(() => {});
+      const rejected = fnReject();
+
+      await Ok().$orSafePromise(rejected, fnMapError);
+
+      expect(fnMapError).not.toHaveBeenCalled();
+
+      await rejected.catch(() => {});
+    });
+
+    it("should not reject when the promise rejects", async () => {
+      const rejected = fnReject();
+
+      await expect(Ok("test").$orSafePromise(rejected)).resolves.toStrictEqual(
+        Ok("test"),
+      );
+
+      await rejected.catch(() => {});
+    });
+
+    it("should resolve to Ok with the contained value", async () => {
+      await expect(
+        Ok("test").$orSafePromise(Promise.resolve()),
+      ).resolves.toStrictEqual(Ok("test"));
+    });
+  });
+
+  describe("$andAsync", () => {
+    it("should reject when the and promise rejects", async () => {
+      await expect(Ok().$andAsync(fnReject())).rejects.toBe(errReject);
+    });
+
+    it("should resolve to the and Result", async () => {
+      await expect(Ok().$andAsync(Ok("test"))).resolves.toStrictEqual(
+        Ok("test"),
+      );
+
+      await expect(Ok().$andAsync(Ok("test").$async())).resolves.toStrictEqual(
+        Ok("test"),
+      );
+
+      await expect(
+        Ok().$andAsync(Promise.resolve(Ok("test"))),
+      ).resolves.toStrictEqual(Ok("test"));
+    });
+
+    it("should handle custom objects with the ResultLikeSymbol", async () => {
+      await expect(Ok().$andAsync(ResultLikeOk)).resolves.toStrictEqual(
+        Ok("test"),
+      );
+
+      await expect(Ok().$andAsync(ResultLikeErr)).resolves.toStrictEqual(
+        Err("test"),
+      );
+
+      await expect(
+        Ok().$andAsync(Promise.resolve(ResultLikeOk)),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Ok().$andAsync(Promise.resolve(ResultLikeErr)),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+  });
+
+  describe("$andThenAsync", () => {
+    it("should invoke the and function with the contained value", async () => {
+      const fnAnd = vi.fn(() => Err());
+
+      await Ok("test").$andThenAsync(fnAnd);
+
+      expect(fnAnd).toHaveBeenCalledExactlyOnceWith("test");
+    });
+
+    it("should reject when the and function throws", async () => {
+      await expect(Ok().$andThenAsync(fnThrow)).rejects.toBe(errThrow);
+    });
+
+    it("should reject when the and function rejects", async () => {
+      await expect(Ok().$andThenAsync(fnReject)).rejects.toBe(errReject);
+    });
+
+    it("should resolve to the and Result", async () => {
+      await expect(Ok().$andThenAsync(() => Ok("test"))).resolves.toStrictEqual(
+        Ok("test"),
+      );
+
+      await expect(
+        Ok().$andThenAsync(async () => Ok("test")),
+      ).resolves.toStrictEqual(Ok("test"));
+    });
+
+    it("should handle custom objects with the ResultLikeSymbol", async () => {
+      await expect(
+        Ok().$andThenAsync(() => ResultLikeOk),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Ok().$andThenAsync(() => ResultLikeErr),
+      ).resolves.toStrictEqual(Err("test"));
+
+      await expect(
+        Ok().$andThenAsync(async () => ResultLikeOk),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Ok().$andThenAsync(async () => ResultLikeErr),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+  });
+
+  describe("$andThroughAsync", () => {
+    it("should invoke the through function with the contained value", async () => {
+      const fnThrough = vi.fn(() => Ok());
+
+      await Ok("test").$andThroughAsync(fnThrough);
+
+      expect(fnThrough).toHaveBeenCalledExactlyOnceWith("test");
+    });
+
+    it("should reject when the through function throws", async () => {
+      await expect(Ok().$andThroughAsync(fnThrow)).rejects.toBe(errThrow);
+    });
+
+    it("should reject when the through function rejects", async () => {
+      await expect(Ok().$andThroughAsync(fnReject)).rejects.toBe(errReject);
+    });
+
+    it("should resolve to Ok with the contained value when the through function resolves to Ok", async () => {
+      await expect(
+        Ok("test").$andThroughAsync(() => Ok()),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Ok("test").$andThroughAsync(async () => Ok()),
+      ).resolves.toStrictEqual(Ok("test"));
+    });
+
+    it("should resolve to the Err when the though function resolves to Err", async () => {
+      await expect(
+        Ok().$andThroughAsync(() => Err("test")),
+      ).resolves.toStrictEqual(Err("test"));
+
+      await expect(
+        Ok().$andThroughAsync(() => Err("test")),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+
+    it("should handle custom objects with the ResultLikeSymbol", async () => {
+      await expect(
+        Ok().$andThroughAsync(() => ResultLikeOk),
+      ).resolves.toStrictEqual(Ok());
+
+      await expect(
+        Ok().$andThroughAsync(() => ResultLikeErr),
+      ).resolves.toStrictEqual(Err("test"));
+
+      await expect(
+        Ok().$andThroughAsync(async () => ResultLikeOk),
+      ).resolves.toStrictEqual(Ok());
+
+      await expect(
+        Ok().$andThroughAsync(async () => ResultLikeErr),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+  });
+
+  describe("$andSafeAsync", () => {
+    it("should invoke the safe function with the contained value", async () => {
+      const fnSafe = vi.fn(() => "value");
+
+      await Ok("test").$andSafeAsync(fnSafe);
+
+      expect(fnSafe).toHaveBeenCalledExactlyOnceWith("test");
+    });
+
+    it("should invoke the map error function with the thrown value when the safe function throws", async () => {
+      const fnMapError = vi.fn(() => {});
+
+      await Ok().$andSafeAsync(fnThrow, fnMapError);
+
+      expect(fnMapError).toHaveBeenCalledExactlyOnceWith(errThrow);
+    });
+
+    it("should invoke the map error function with the rejected value when the safe function rejects", async () => {
+      const fnMapError = vi.fn(() => {});
+
+      await Ok().$andSafeAsync(fnReject, fnMapError);
+
+      expect(fnMapError).toHaveBeenCalledExactlyOnceWith(errReject);
+    });
+
+    it("should reject when the map error function throws", async () => {
+      await expect(Ok().$andSafeAsync(fnReject, fnThrow)).rejects.toBe(
+        errThrow,
+      );
+    });
+
+    it("should resolve to Ok with the safe value", async () => {
+      await expect(Ok().$andSafeAsync(() => "test")).resolves.toStrictEqual(
+        Ok("test"),
+      );
+
+      await expect(
+        Ok().$andSafeAsync(async () => "test"),
+      ).resolves.toStrictEqual(Ok("test"));
+    });
+
+    it("should resolve to Err with the thrown/rejected error when the safe function throws or rejects", async () => {
+      await expect(Ok("test").$andSafeAsync(fnThrow)).resolves.toStrictEqual(
+        Err(errThrow),
+      );
+
+      await expect(Ok("test").$andSafeAsync(fnReject)).resolves.toStrictEqual(
+        Err(errReject),
+      );
+    });
+
+    it("should map the error to RetupleCaughtValueError when it is not an instance of Error, and when no map error function is provided", async () => {
+      await expect(
+        Ok().$andSafeAsync(() => {
+          throw "test";
+        }),
+      ).resolves.toStrictEqual(Err(new RetupleCaughtValueError("test")));
+
+      await expect(
+        Ok().$andSafeAsync(async () => {
+          throw "test";
+        }),
+      ).resolves.toStrictEqual(Err(new RetupleCaughtValueError("test")));
+    });
+
+    it("should map the error with the map error function when provided", async () => {
+      await expect(
+        Ok().$andSafeAsync(fnThrow, () => "test"),
+      ).resolves.toStrictEqual(Err("test"));
+
+      await expect(
+        Ok().$andSafeAsync(fnReject, () => "test"),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+  });
+
+  describe("$andSafePromise", () => {
+    it("should invoke the map error function with the rejected value when the promise rejects", async () => {
+      const fnMapError = vi.fn(() => {});
+      const rejected = fnReject();
+
+      await Ok().$andSafePromise(rejected, fnMapError);
+
+      expect(fnMapError).toHaveBeenCalledExactlyOnceWith(errReject);
+
+      await rejected.catch(() => {});
+    });
+
+    it("should reject when the map error function throws", async () => {
+      await expect(Ok().$andSafePromise(fnReject(), fnThrow)).rejects.toBe(
+        errThrow,
+      );
+    });
+
+    it("should resolve to Ok with the safe value", async () => {
+      await expect(
+        Ok().$andSafePromise(Promise.resolve("test")),
+      ).resolves.toStrictEqual(Ok("test"));
+    });
+
+    it("should resolve to Err with the rejected error when the promise rejects", async () => {
+      await expect(
+        Ok("test").$andSafePromise(fnReject()),
+      ).resolves.toStrictEqual(Err(errReject));
+    });
+
+    it("should map the error to RetupleCaughtValueError when it is not an instance of Error, and when no map error function is provided", async () => {
+      await expect(
+        Ok().$andSafePromise(Promise.reject("test")),
+      ).resolves.toStrictEqual(Err(new RetupleCaughtValueError("test")));
+    });
+
+    it("should map the error with the map error function when provided", async () => {
+      await expect(
+        Ok().$andSafePromise(fnReject(), () => "test"),
+      ).resolves.toStrictEqual(Err("test"));
     });
   });
 });
