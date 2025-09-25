@@ -2979,7 +2979,7 @@ interface Retuple<T, E>
     this: Result<T, E>,
     def: U,
     f: (val: T) => V,
-  ): Result<U | V, E>;
+  ): Result<U | V, never>;
 
   /**
    * Returns `Ok` containing the return value of the map function when this
@@ -3018,7 +3018,7 @@ interface Retuple<T, E>
     this: Result<T, E>,
     def: (err: E) => U,
     f: (val: T) => V,
-  ): Result<U | V, E>;
+  ): Result<U | V, never>;
 
   /**
    * Returns the or result, when this result is `Err`.
