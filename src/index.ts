@@ -88,23 +88,6 @@ export class RetupleInvalidUnionError extends Error {
 }
 
 /**
- * ## Retuple Array Method Unavailable Error
- *
- * This error is thrown when calling a built-in array method from a `Result`.
- */
-export class RetupleArrayMethodUnavailableError extends Error {
-  constructor(
-    public value: unknown[],
-    method: Exclude<keyof any[] & string, "length">,
-  ) {
-    super(
-      `Built in array method '${method}' should not be called directly from ` +
-        "a Result, convert the Result to a tuple first",
-    );
-  }
-}
-
-/**
  * ## Result
  *
  * @TODO

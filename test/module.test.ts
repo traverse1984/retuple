@@ -65,18 +65,6 @@ describe("Module", () => {
         expect(rt.RetupleInvalidUnionError.prototype).toBeInstanceOf(Error);
       });
     });
-
-    describe("RetupleArrayMethodUnavailableError", () => {
-      it("should be exported", () => {
-        expect(rt.RetupleArrayMethodUnavailableError).toBeTypeOf("function");
-      });
-
-      it("should extend Error", () => {
-        expect(rt.RetupleArrayMethodUnavailableError.prototype).toBeInstanceOf(
-          Error,
-        );
-      });
-    });
   });
 
   describe("Result export", () => {
