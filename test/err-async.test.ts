@@ -701,6 +701,14 @@ describe("ResultAsync (Err)", () => {
     });
   });
 
+  describe("$flatten", () => {
+    it("should return Err with the contained value", async () => {
+      await expect(Err("test").$async().$flatten()).resolves.toStrictEqual(
+        Err("test"),
+      );
+    });
+  });
+
   describe("$iter", () => {
     it("should return an iterator", async () => {
       const iterator = await Err([]).$async().$iter();

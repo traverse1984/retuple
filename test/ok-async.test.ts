@@ -881,6 +881,17 @@ describe("ResultAsync (Ok)", async () => {
     });
   });
 
+  describe("$flatten", () => {
+    it("should return the contained Result", async () => {
+      await expect(Ok(Ok("test")).$async().$flatten()).resolves.toStrictEqual(
+        Ok("test"),
+      );
+      await expect(Ok(Err("test")).$async().$flatten()).resolves.toStrictEqual(
+        Err("test"),
+      );
+    });
+  });
+
   describe("$promise", () => {
     it("should return a Promise", () => {
       expect(Ok().$async().$promise()).toBeInstanceOf(Promise);

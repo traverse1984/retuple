@@ -1681,6 +1681,14 @@ class ResultAsync<T, E> {
   }
 
   /**
+   * The same as {@link Retuple.$flatten|$flatten} except it returns
+   * {@link ResultAsync}.
+   */
+  $flatten<U, F>(this: ResultAsync<Result<U, F>, E>): ResultAsync<U, E | F> {
+    return new ResultAsync(this.#inner.then((res) => res.$flatten()));
+  }
+
+  /**
    * The same as {@link Retuple.$promise|$promise}.
    */
   $promise(this: ResultAsync<T, E>): Promise<Result<T, E>> {
