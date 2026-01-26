@@ -1,6 +1,6 @@
 {
   "name": "retuple",
-  "version": "1.0.0-next.22",
+  "version": "1.0.0-next.23",
   "scripts": {
     "test": "vitest",
     "lint": "eslint . --ext .ts -c eslint.config.mjs --fix",
