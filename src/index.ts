@@ -112,8 +112,8 @@ Result.$all = $all;
 Result.$allPromised = $allPromised;
 Result.$any = $any;
 Result.$anyPromised = $anyPromised;
-Result.$transpose = $transpose;
-Result.$transposePromised = $transposePromised;
+Result.$collect = $collect;
+Result.$collectPromised = $collectPromised;
 
 Object.freeze(Result);
 
@@ -705,9 +705,40 @@ function $safeRetry<T, E = Error>(
 }
 
 /**
- * @TODO
+ * Construct a {@link Result} from an array of results. If all are Ok,
+ * then the result is `Ok` containing a tuple of values. Otherwise,
+ * the result is `Err` containing the first error encountered.
+ *
+ * @example
+ *
+ * ```ts
+ * const result: Result<[string, number], Error | string> = Result.$all([
+ *   Result.$truthy(stringValue, () => new Error("Invalid string")),
+ *   Result.$truthy(numberValue, () => "Invalid number"),
+ * ]);
+ * ```
+ *
+ * @example
+ *
+ * ```ts
+ * const tuple: [1, 2, 3] = Result.$all([
+ *   Ok(1),
+ *   Ok(2),
+ *   Ok(3),
+ * ]).$unwrap();
+ * ```
+ *
+ * @example
+ *
+ * ```ts
+ * const error: "error" = Result.$all([
+ *   Ok(1),
+ *   Err("error"),
+ *   Ok(3),
+ * ]).$unwrapErr();
+ * ```
  */
-function $all<TResults extends ResultLike<any, any>[]>(
+function $all<const TResults extends ResultLike<any, any>[]>(
   results: TResults,
 ): Result<AllOk<TResults>, AllErr<TResults>> {
   const oks: any[] = [];
@@ -726,9 +757,10 @@ function $all<TResults extends ResultLike<any, any>[]>(
 }
 
 /**
- * @TODO
+ * The same as {@link Result.$all|$all} except it accepts result-like
+ * promises and returns {@link ResultAsync}.
  */
-function $allPromised<TResults extends ResultLikeAwaitable<any, any>[]>(
+function $allPromised<const TResults extends ResultLikeAwaitable<any, any>[]>(
   results: TResults,
 ): ResultAsync<AllOk<TResults>, AllErr<TResults>> {
   return new ResultAsync(
@@ -761,9 +793,40 @@ function $allPromised<TResults extends ResultLikeAwaitable<any, any>[]>(
 }
 
 /**
- * @TODO
+ * Construct a {@link Result} from an array of results. If any are Ok,
+ * then the result is `Ok` containing the first value encountered.
+ * Otherwise, the result is `Err` containing a tuple of errors.
+ *
+ * @example
+ *
+ * ```ts
+ * const result: Result<string | number, [Error, string]> = Result.$any([
+ *   Result.$truthy(stringValue, () => new Error("Invalid string")),
+ *   Result.$truthy(numberValue, () => "Invalid number"),
+ * ]);
+ * ```
+ *
+ * @example
+ *
+ * ```ts
+ * const tuple: 2 = Result.$any([
+ *   Err("error1"),
+ *   Ok(2),
+ *   Err("error3"),
+ * ]).$unwrap();
+ * ```
+ *
+ * @example
+ *
+ * ```ts
+ * const error: ["error1", "error2", "error3"] = Result.$any([
+ *   Err("error1"),
+ *   Err("error2"),
+ *   Err("error3"),
+ * ]).$unwrapErr();
+ * ```
  */
-function $any<TResults extends ResultLike<any, any>[]>(
+function $any<const TResults extends ResultLike<any, any>[]>(
   results: TResults,
 ): Result<AnyOk<TResults>, AnyErr<TResults>> {
   const errs: any[] = [];
@@ -782,9 +845,10 @@ function $any<TResults extends ResultLike<any, any>[]>(
 }
 
 /**
- * @TODO
+ * The same as {@link Result.$any|$any} except it accepts result-like
+ * promises and returns {@link ResultAsync}.
  */
-function $anyPromised<TResults extends ResultLikeAwaitable<any, any>[]>(
+function $anyPromised<const TResults extends ResultLikeAwaitable<any, any>[]>(
   results: TResults,
 ): ResultAsync<AnyOk<TResults>, AnyErr<TResults>> {
   return new ResultAsync(
@@ -818,11 +882,43 @@ function $anyPromised<TResults extends ResultLikeAwaitable<any, any>[]>(
 }
 
 /**
- * @TODO
+ * Construct a {@link Result} from an object of results. If all are Ok,
+ * then the result is `Ok` containing an object of the values. Otherwise,
+ * the result is `Err` containing the first error encountered.
+ *
+ * @example
+ *
+ * ```ts
+ * const result: Result<
+ *   { test1: string, test2: number},
+ *   string | Error,
+ * > = Result.$collect({
+ *   test1: Result.$truthy(stringValue, () => new Error("Invalid string")),
+ *   test2: Result.$truthy(numberValue, () => "Invalid number"),
+ * ]);
+ * ```
+ *
+ * @example
+ *
+ * ```ts
+ * const object: { a: 1, b: 2 } = Result.$collect({
+ *   a: Ok(1),
+ *   b: Ok(2),
+ * }).$unwrap();
+ * ```
+ *
+ * @example
+ *
+ * ```ts
+ * const error: "error" = Result.$collect({
+ *   a: Ok(1),
+ *   b: Err("error"),
+ * }).$unwrapErr();
+ * ```
  */
-function $transpose<TResults extends Record<string, ResultLike<any, any>>>(
+function $collect<TResults extends Record<string, ResultLike<any, any>>>(
   results: TResults,
-): Result<TransposeOk<TResults>, TransposeErr<TResults>> {
+): Result<CollectOk<TResults>, CollectErr<TResults>> {
   const oks: Record<string, any> = {};
 
   for (const [key, result] of Object.entries(results)) {
@@ -835,17 +931,16 @@ function $transpose<TResults extends Record<string, ResultLike<any, any>>>(
     }
   }
 
-  return Ok(oks as TransposeOk<TResults>);
+  return Ok(oks as CollectOk<TResults>);
 }
 
 /**
- * @TODO
+ * The same as {@link Result.$collect|$collect} except it accepts result-like
+ * promises and returns {@link ResultAsync}.
  */
-function $transposePromised<
+function $collectPromised<
   TResults extends Record<string, ResultLikeAwaitable<any, any>>,
->(
-  results: TResults,
-): ResultAsync<TransposeOk<TResults>, TransposeErr<TResults>> {
+>(results: TResults): ResultAsync<CollectOk<TResults>, CollectErr<TResults>> {
   return new ResultAsync(
     new Promise((resolve, reject) => {
       void Promise.all(
@@ -869,7 +964,7 @@ function $transposePromised<
         ),
       ).then(
         (values) =>
-          resolve(Ok(Object.fromEntries(values) as TransposeOk<TResults>)),
+          resolve(Ok(Object.fromEntries(values) as CollectOk<TResults>)),
         (err) => resolve(Err(err)),
       );
     }),
@@ -3326,13 +3421,12 @@ type AnyErr<TResults extends ResultLikeAwaitable<any, any>[]> = {
   [K in keyof TResults]: TResults[K] extends Result<any, infer E> ? E : never;
 };
 
-type TransposeOk<
-  TResults extends Record<string, ResultLikeAwaitable<any, any>>,
-> = {
-  [K in keyof TResults]: TResults[K] extends Result<infer T, any> ? T : never;
-} & {};
+type CollectOk<TResults extends Record<string, ResultLikeAwaitable<any, any>>> =
+  {
+    [K in keyof TResults]: TResults[K] extends Result<infer T, any> ? T : never;
+  } & {};
 
-type TransposeErr<
+type CollectErr<
   TResults extends Record<string, ResultLikeAwaitable<any, any>>,
 > = TResults[keyof TResults] extends Result<any, infer E> ? E : never;
 

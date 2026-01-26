@@ -640,16 +640,16 @@ describe("Result", () => {
     });
   });
 
-  describe("$transpose", () => {
+  describe("$collect", () => {
     it("should return Ok containing an object of values when all values are Ok", () => {
       expect(
-        Result.$transpose({ test1: Ok(1), test2: Ok(2), test3: Ok(3) }),
+        Result.$collect({ test1: Ok(1), test2: Ok(2), test3: Ok(3) }),
       ).toStrictEqual(Ok({ test1: 1, test2: 2, test3: 3 }));
     });
 
     it("should return Err containing the first Err value", () => {
       expect(
-        Result.$transpose({
+        Result.$collect({
           test1: Ok(1),
           test2: Err("test2"),
           test3: Err("test3"),
@@ -658,10 +658,10 @@ describe("Result", () => {
     });
   });
 
-  describe("$transposePromised", () => {
+  describe("$collectPromised", () => {
     it("should reject when any element rejects", async () => {
       await expect(
-        Result.$transposePromised({
+        Result.$collectPromised({
           test1: Ok(1),
           test2: Promise.reject(errReject),
           test3: Ok(3),
@@ -671,7 +671,7 @@ describe("Result", () => {
 
     it("should resolve to Ok containing an object of values when all values resolve to Ok", async () => {
       await expect(
-        Result.$transposePromised({
+        Result.$collectPromised({
           test1: Ok(1),
           test2: Promise.resolve(Ok(2)),
           test3: Ok(3).$async(),
@@ -681,7 +681,7 @@ describe("Result", () => {
 
     it("should resolve to Err containing the first resolved Err value", async () => {
       await expect(
-        Result.$transposePromised({
+        Result.$collectPromised({
           test1: Ok(1).$async(),
           test2: Err("test2"),
           test3: Err("test3").$async(),
@@ -689,7 +689,7 @@ describe("Result", () => {
       ).resolves.toStrictEqual(Err("test2"));
 
       await expect(
-        Result.$transposePromised({
+        Result.$collectPromised({
           test1: Ok(1).$async(),
           test2: Err("test2").$async(),
           test3: Err("test3"),
