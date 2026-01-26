@@ -108,6 +108,12 @@ Result.$safeAsync = $safeAsync;
 Result.$safePromise = $safePromise;
 Result.$retry = $retry;
 Result.$safeRetry = $safeRetry;
+Result.$all = $all;
+Result.$allPromised = $allPromised;
+Result.$any = $any;
+Result.$anyPromised = $anyPromised;
+Result.$transpose = $transpose;
+Result.$transposePromised = $transposePromised;
 
 Object.freeze(Result);
 
@@ -696,6 +702,178 @@ function $safeRetry<T, E = Error>(
       return Err(mapError(err));
     }
   });
+}
+
+/**
+ * @TODO
+ */
+function $all<TResults extends ResultLike<any, any>[]>(
+  results: TResults,
+): Result<AllOk<TResults>, AllErr<TResults>> {
+  const oks: any[] = [];
+
+  for (const result of results) {
+    const { ok, value } = result[ResultLikeSymbol]();
+
+    if (ok) {
+      oks.push(value);
+    } else {
+      return Err(value);
+    }
+  }
+
+  return Ok(oks as AllOk<TResults>);
+}
+
+/**
+ * @TODO
+ */
+function $allPromised<TResults extends ResultLikeAwaitable<any, any>[]>(
+  results: TResults,
+): ResultAsync<AllOk<TResults>, AllErr<TResults>> {
+  return new ResultAsync(
+    new Promise((resolve, reject) => {
+      void Promise.all(
+        results.map((result) =>
+          Promise.resolve(result).then(
+            (result) => {
+              const { ok, value } = result[ResultLikeSymbol]();
+
+              return ok ? value : Promise.reject(value);
+            },
+            (err) => {
+              reject(err);
+
+              // Because reject has been called, we can safely return an
+              // empty rejection to ensure we don't end up with undefined
+              // in the Ok path. The subsequent call to resolve will not
+              // change the state of the Promise.
+              return Promise.reject();
+            },
+          ),
+        ),
+      ).then(
+        (values) => resolve(Ok(values as AllOk<TResults>)),
+        (err) => resolve(Err(err)),
+      );
+    }),
+  );
+}
+
+/**
+ * @TODO
+ */
+function $any<TResults extends ResultLike<any, any>[]>(
+  results: TResults,
+): Result<AnyOk<TResults>, AnyErr<TResults>> {
+  const errs: any[] = [];
+
+  for (const result of results) {
+    const { ok, value } = result[ResultLikeSymbol]();
+
+    if (ok) {
+      return Ok(value);
+    } else {
+      errs.push(value);
+    }
+  }
+
+  return Err(errs as AnyErr<TResults>);
+}
+
+/**
+ * @TODO
+ */
+function $anyPromised<TResults extends ResultLikeAwaitable<any, any>[]>(
+  results: TResults,
+): ResultAsync<AnyOk<TResults>, AnyErr<TResults>> {
+  return new ResultAsync(
+    new Promise((resolve, reject) => {
+      let rejected = false;
+
+      void Promise.any(
+        results.map((result) =>
+          Promise.resolve(result).then(
+            (result) => {
+              const { ok, value } = result[ResultLikeSymbol]();
+
+              return ok ? value : Promise.reject(value);
+            },
+            (err) => {
+              rejected = true;
+
+              return Promise.reject(err);
+            },
+          ),
+        ),
+      ).then(
+        (value) => resolve(Ok(value)),
+        (err) =>
+          err instanceof AggregateError && rejected === false
+            ? resolve(Err(err.errors as AnyErr<TResults>))
+            : reject(err),
+      );
+    }),
+  );
+}
+
+/**
+ * @TODO
+ */
+function $transpose<TResults extends Record<string, ResultLike<any, any>>>(
+  results: TResults,
+): Result<TransposeOk<TResults>, TransposeErr<TResults>> {
+  const oks: Record<string, any> = {};
+
+  for (const [key, result] of Object.entries(results)) {
+    const { ok, value } = result[ResultLikeSymbol]();
+
+    if (ok) {
+      oks[key] = value;
+    } else {
+      return Err(value);
+    }
+  }
+
+  return Ok(oks as TransposeOk<TResults>);
+}
+
+/**
+ * @TODO
+ */
+function $transposePromised<
+  TResults extends Record<string, ResultLikeAwaitable<any, any>>,
+>(
+  results: TResults,
+): ResultAsync<TransposeOk<TResults>, TransposeErr<TResults>> {
+  return new ResultAsync(
+    new Promise((resolve, reject) => {
+      void Promise.all(
+        Object.entries(results).map(([key, result]) =>
+          Promise.resolve(result).then(
+            (result) => {
+              const { ok, value } = result[ResultLikeSymbol]();
+
+              return ok ? ([key, value] as const) : Promise.reject(value);
+            },
+            (err) => {
+              reject(err);
+
+              // Because reject has been called, we can safely return an
+              // empty rejection to ensure we don't end up with undefined
+              // in the Ok path. The subsequent call to resolve will not
+              // change the state of the Promise.
+              return Promise.reject();
+            },
+          ),
+        ),
+      ).then(
+        (values) =>
+          resolve(Ok(Object.fromEntries(values) as TransposeOk<TResults>)),
+        (err) => resolve(Err(err)),
+      );
+    }),
+  );
 }
 
 /**
@@ -3133,6 +3311,30 @@ type ResultLikeAwaitable<T, E> =
 
 type ObjectUnionOk<T> = { success: true; data: T; error?: never | undefined };
 type ObjectUnionErr<E> = { success: false; data?: never | undefined; error: E };
+
+type AllOk<TResults extends ResultLikeAwaitable<any, any>[]> = {
+  [K in keyof TResults]: TResults[K] extends Result<infer T, any> ? T : never;
+};
+
+type AllErr<TResults extends ResultLikeAwaitable<any, any>[]> =
+  TResults[number] extends ResultLikeAwaitable<any, infer E> ? E : never;
+
+type AnyOk<TResult extends ResultLikeAwaitable<any, any>[]> =
+  TResult[number] extends ResultLikeAwaitable<infer T, any> ? T : never;
+
+type AnyErr<TResults extends ResultLikeAwaitable<any, any>[]> = {
+  [K in keyof TResults]: TResults[K] extends Result<any, infer E> ? E : never;
+};
+
+type TransposeOk<
+  TResults extends Record<string, ResultLikeAwaitable<any, any>>,
+> = {
+  [K in keyof TResults]: TResults[K] extends Result<infer T, any> ? T : never;
+} & {};
+
+type TransposeErr<
+  TResults extends Record<string, ResultLikeAwaitable<any, any>>,
+> = TResults[keyof TResults] extends Result<any, infer E> ? E : never;
 
 type Truthy<T> = Exclude<T, false | null | undefined | 0 | 0n | "">;
 type NonZero<N extends number> = N & (`${N}` extends "0" ? never : N);

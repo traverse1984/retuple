@@ -537,4 +537,164 @@ describe("Result", () => {
       ).resolves.toStrictEqual(Err("test"));
     });
   });
+
+  describe("$all", () => {
+    it("should return Ok containing a tuple of values when all elements are Ok", () => {
+      expect(Result.$all([Ok(1), Ok(2), Ok(3)])).toStrictEqual(Ok([1, 2, 3]));
+    });
+
+    it("should return Err containing the first Err value", () => {
+      expect(
+        Result.$all([Ok(1), Err("test"), Ok(2), Err("test2")]),
+      ).toStrictEqual(Err("test"));
+    });
+  });
+
+  describe("$allPromised", () => {
+    it("should reject when any element rejects", async () => {
+      await expect(
+        Result.$allPromised([Ok(1).$async(), Promise.reject(errReject), Ok(3)]),
+      ).rejects.toBe(errReject);
+    });
+
+    it("should resolve to Ok containing a tuple of values when all elements resolve to Ok", async () => {
+      await expect(
+        Result.$allPromised([Ok(1).$async(), Promise.resolve(Ok(2)), Ok(3)]),
+      ).resolves.toStrictEqual(Ok([1, 2, 3]));
+    });
+
+    it("should resolve to Err containing the first resolved Err", async () => {
+      await expect(
+        Result.$allPromised([
+          Ok(1).$async(),
+          Err("test"),
+          Ok(2),
+          Err("test2").$async(),
+        ]),
+      ).resolves.toStrictEqual(Err("test"));
+
+      await expect(
+        Result.$allPromised([
+          Ok(1).$async(),
+          Err("test").$async(),
+          Ok(2),
+          Err("test2"),
+        ]),
+      ).resolves.toStrictEqual(Err("test2"));
+    });
+  });
+
+  describe("$any", () => {
+    it("should return Ok containing the first Ok value", () => {
+      expect(Result.$any([Err(1), Ok(2), Err(3), Ok(4)])).toStrictEqual(Ok(2));
+    });
+
+    it("should return Err containing a tuple of values when all elements are Err", () => {
+      expect(Result.$any([Err(1), Err(2), Err(3)])).toStrictEqual(
+        Err([1, 2, 3]),
+      );
+    });
+  });
+
+  describe("$anyPromised", () => {
+    it("should reject with AggregateError when one or more elements reject, and when all other elements resolve to Err", async () => {
+      await expect(
+        Result.$anyPromised([
+          Err(1),
+          Promise.reject(errReject),
+          Err(2).$async(),
+        ]),
+      ).rejects.toBeInstanceOf(AggregateError);
+
+      await expect(
+        Result.$anyPromised([
+          Err(1),
+          Promise.reject(errReject),
+          Err(2).$async(),
+        ]),
+      ).rejects.toStrictEqual(
+        expect.objectContaining({ errors: [1, errReject, 2] }),
+      );
+    });
+
+    it("should resolve to Ok containing the first resolved Ok", async () => {
+      await expect(
+        Result.$anyPromised([Ok(1), Ok(2).$async()]),
+      ).resolves.toStrictEqual(Ok(1));
+
+      await expect(
+        Result.$anyPromised([Ok(1).$async(), Ok(2)]),
+      ).resolves.toStrictEqual(Ok(2));
+    });
+
+    it("should resolve to Ok containing the first resolved Ok even when an element rejects", async () => {
+      await expect(
+        Result.$anyPromised([Promise.reject(errReject), Ok(1).$async()]),
+      ).resolves.toStrictEqual(Ok(1));
+    });
+
+    it("should resolve to Err containing a tuple of values when all elements resolve to Err", async () => {
+      await expect(
+        Result.$anyPromised([Err(1).$async(), Promise.resolve(Err(2)), Err(3)]),
+      ).resolves.toStrictEqual(Err([1, 2, 3]));
+    });
+  });
+
+  describe("$transpose", () => {
+    it("should return Ok containing an object of values when all values are Ok", () => {
+      expect(
+        Result.$transpose({ test1: Ok(1), test2: Ok(2), test3: Ok(3) }),
+      ).toStrictEqual(Ok({ test1: 1, test2: 2, test3: 3 }));
+    });
+
+    it("should return Err containing the first Err value", () => {
+      expect(
+        Result.$transpose({
+          test1: Ok(1),
+          test2: Err("test2"),
+          test3: Err("test3"),
+        }),
+      ).toStrictEqual(Err("test2"));
+    });
+  });
+
+  describe("$transposePromised", () => {
+    it("should reject when any element rejects", async () => {
+      await expect(
+        Result.$transposePromised({
+          test1: Ok(1),
+          test2: Promise.reject(errReject),
+          test3: Ok(3),
+        }),
+      ).rejects.toBe(errReject);
+    });
+
+    it("should resolve to Ok containing an object of values when all values resolve to Ok", async () => {
+      await expect(
+        Result.$transposePromised({
+          test1: Ok(1),
+          test2: Promise.resolve(Ok(2)),
+          test3: Ok(3).$async(),
+        }),
+      ).resolves.toStrictEqual(Ok({ test1: 1, test2: 2, test3: 3 }));
+    });
+
+    it("should resolve to Err containing the first resolved Err value", async () => {
+      await expect(
+        Result.$transposePromised({
+          test1: Ok(1).$async(),
+          test2: Err("test2"),
+          test3: Err("test3").$async(),
+        }),
+      ).resolves.toStrictEqual(Err("test2"));
+
+      await expect(
+        Result.$transposePromised({
+          test1: Ok(1).$async(),
+          test2: Err("test2").$async(),
+          test3: Err("test3"),
+        }),
+      ).resolves.toStrictEqual(Err("test3"));
+    });
+  });
 });
