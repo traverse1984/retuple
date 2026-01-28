@@ -548,6 +548,14 @@ describe("Result", () => {
         Result.$all([Ok(1), Err("test"), Ok(2), Err("test2")]),
       ).toStrictEqual(Err("test"));
     });
+
+    it("should handle custom objects with the ResultLikeSymbol", () => {
+      expect(Result.$all([ResultLikeOk])).toStrictEqual(Ok(["test"]));
+
+      expect(Result.$all([ResultLikeOk, ResultLikeErr])).toStrictEqual(
+        Err("test"),
+      );
+    });
   });
 
   describe("$allPromised", () => {
@@ -582,6 +590,27 @@ describe("Result", () => {
         ]),
       ).resolves.toStrictEqual(Err("test2"));
     });
+
+    it("should handle custom objects with the ResultLikeSymbol", async () => {
+      await expect(Result.$allPromised([ResultLikeOk])).resolves.toStrictEqual(
+        Ok(["test"]),
+      );
+
+      await expect(
+        Result.$allPromised([ResultLikeOk, ResultLikeErr]),
+      ).resolves.toStrictEqual(Err("test"));
+
+      await expect(
+        Result.$allPromised([Promise.resolve(ResultLikeOk)]),
+      ).resolves.toStrictEqual(Ok(["test"]));
+
+      await expect(
+        Result.$allPromised([
+          Promise.resolve(ResultLikeOk),
+          Promise.resolve(ResultLikeErr),
+        ]),
+      ).resolves.toStrictEqual(Err("test"));
+    });
   });
 
   describe("$any", () => {
@@ -593,6 +622,14 @@ describe("Result", () => {
       expect(Result.$any([Err(1), Err(2), Err(3)])).toStrictEqual(
         Err([1, 2, 3]),
       );
+    });
+
+    it("should handle custom objects with the ResultLikeSymbol", () => {
+      expect(Result.$any([ResultLikeOk, ResultLikeErr])).toStrictEqual(
+        Ok("test"),
+      );
+
+      expect(Result.$any([ResultLikeErr])).toStrictEqual(Err(["test"]));
     });
   });
 
@@ -638,6 +675,27 @@ describe("Result", () => {
         Result.$anyPromised([Err(1).$async(), Promise.resolve(Err(2)), Err(3)]),
       ).resolves.toStrictEqual(Err([1, 2, 3]));
     });
+
+    it("should handle custom objects with the ResultLikeSymbol", async () => {
+      await expect(
+        Result.$anyPromised([ResultLikeOk, ResultLikeErr]),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(Result.$anyPromised([ResultLikeErr])).resolves.toStrictEqual(
+        Err(["test"]),
+      );
+
+      await expect(
+        Result.$anyPromised([
+          Promise.resolve(ResultLikeOk),
+          Promise.resolve(ResultLikeErr),
+        ]),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Result.$anyPromised([Promise.resolve(ResultLikeErr)]),
+      ).resolves.toStrictEqual(Err(["test"]));
+    });
   });
 
   describe("$collect", () => {
@@ -655,6 +713,16 @@ describe("Result", () => {
           test3: Err("test3"),
         }),
       ).toStrictEqual(Err("test2"));
+    });
+
+    it("should handle custom objects with the ResultLikeSymbol", () => {
+      expect(Result.$collect({ ok: ResultLikeOk })).toStrictEqual(
+        Ok({ ok: "test" }),
+      );
+
+      expect(
+        Result.$collect({ ok: ResultLikeOk, err: ResultLikeErr }),
+      ).toStrictEqual(Err("test"));
     });
   });
 
@@ -695,6 +763,27 @@ describe("Result", () => {
           test3: Err("test3"),
         }),
       ).resolves.toStrictEqual(Err("test3"));
+    });
+
+    it("should handle custom objects with the ResultLikeSymbol", async () => {
+      await expect(
+        Result.$collectPromised({ ok: ResultLikeOk }),
+      ).resolves.toStrictEqual(Ok({ ok: "test" }));
+
+      await expect(
+        Result.$collectPromised({ ok: ResultLikeOk, err: ResultLikeErr }),
+      ).resolves.toStrictEqual(Err("test"));
+
+      await expect(
+        Result.$collectPromised({ ok: Promise.resolve(ResultLikeOk) }),
+      ).resolves.toStrictEqual(Ok({ ok: "test" }));
+
+      await expect(
+        Result.$collectPromised({
+          ok: Promise.resolve(ResultLikeOk),
+          err: Promise.resolve(ResultLikeErr),
+        }),
+      ).resolves.toStrictEqual(Err("test"));
     });
   });
 });

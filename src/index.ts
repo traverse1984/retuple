@@ -88,6 +88,18 @@ export class RetupleInvalidUnionError extends Error {
 }
 
 /**
+ * ## Retuple Check Failed Error
+ *
+ * This error is used as the error type of a `Result` when using $andAssert
+ * or $andCheck, when no custom error handler is provided.
+ */
+export class RetupleCheckFailedError<const T = unknown> extends Error {
+  constructor(public value: T) {
+    super("Check failed");
+  }
+}
+
+/**
  * ## Result
  *
  * @TODO
@@ -1055,20 +1067,44 @@ class ResultOk<T, E> extends Array<T | undefined> implements Retuple<T, E> {
     return Ok(f(this[1]));
   }
 
-  $andAssertOr<U, F, A extends T>(
+  $andAssert<F>(
     this: ThisOk<T>,
-    def: ResultLike<U, F>,
-    condition: ((val: T) => unknown) | ((val: T) => val is A) = isTruthy,
-  ): Result<T | U | A | Truthy<T>, E | F> {
-    return condition(this[1]) ? this : asResult(def);
+    mapError: (val: T) => F = mapCheckError as () => F,
+  ): Result<Truthy<T>, E | F> {
+    return this[1] ? (this as ThisOk<Truthy<T>>) : Err(mapError(this[1]));
   }
 
-  $andAssertOrElse<U, F, A extends T>(
+  $andCheck<U extends T, F>(
     this: ThisOk<T>,
-    def: (val: T) => ResultLike<U, F>,
-    condition: ((val: T) => unknown) | ((val: T) => val is A) = isTruthy,
-  ): Result<T | U | A | Truthy<T>, E | F> {
-    return condition(this[1]) ? this : asResult(def(this[1]));
+    check: (val: T) => val is U,
+    mapError: (val: T) => F = mapCheckError as () => F,
+  ): Result<U, E | F> {
+    return check(this[1]) ? (this as ThisOk<U>) : Err(mapError(this[1]));
+  }
+
+  $andFirst(
+    this: Result<readonly [], E>,
+  ): Result<never, E | RetupleCheckFailedError<[]>>;
+  $andFirst<U>(
+    this: Result<readonly [U?, ...any[]], E>,
+  ): Result<Truthy<U>, E | RetupleCheckFailedError<T>>;
+  $andFirst<F = E>(
+    this: Result<readonly [], E>,
+    mapError: (val: readonly []) => F,
+  ): Result<never, E | F>;
+  $andFirst<U, F = E>(
+    this: Result<readonly [U?, ...any[]], E>,
+    mapError: (val: T) => F,
+  ): Result<Truthy<U>, E | F>;
+  $andFirst<U, F = E>(
+    this: Result<readonly [U?, ...any[]], E> | Result<readonly [], E>,
+    mapError:
+      | ((val: T) => F)
+      | ((val: readonly []) => F) = mapCheckError as () => F,
+  ) {
+    const first = this[1]![0];
+
+    return first ? Ok(first as Truthy<U>) : Err(mapError(this[1] as any));
   }
 
   $or(this: ThisOk<T>): ThisOk<T> {
@@ -1287,11 +1323,15 @@ class ResultErr<T, E> extends Array<E | undefined> implements Retuple<T, E> {
     return Ok(def(this[0]));
   }
 
-  $andAssertOr(this: ThisErr<E>): ThisErr<E> {
+  $andAssert(this: ThisErr<E>): ThisErr<E> {
     return this;
   }
 
-  $andAssertOrElse(this: ThisErr<E>): ThisErr<E> {
+  $andCheck(this: ThisErr<E>): ThisErr<E> {
+    return this;
+  }
+
+  $andFirst(this: ThisErr<E>): ThisErr<E> {
     return this;
   }
 
@@ -1552,73 +1592,108 @@ class ResultAsync<T, E> {
   }
 
   /**
-   * The same as {@link Retuple.$andAssertOr|$andAssertOr}, except it:
+   * The same as {@link Retuple.$andCheck|$andAssert}, except it:
    *
    * - can also accept a `PromiseLike` default value;
    * - returns {@link ResultAsync}.
    */
-  $andAssertOr<U = T, F = E>(
+  $andAssert(
     this: ResultAsync<T, E>,
-    def: ResultLikeAwaitable<U, F>,
-  ): ResultAsync<Truthy<T> | U, E | F>;
-  $andAssertOr<U = T, F = E, A extends T = T>(
+  ): ResultAsync<Truthy<T>, E | RetupleCheckFailedError<T>>;
+  $andAssert<F = E>(
     this: ResultAsync<T, E>,
-    def: ResultLikeAwaitable<U, F>,
-    predicate: (val: T) => val is A,
-  ): ResultAsync<U | A, E | F>;
-  $andAssertOr<U = T, F = E>(
+    mapError: (val: T) => F,
+  ): ResultAsync<Truthy<T>, E | F>;
+  $andAssert<F = E>(
     this: ResultAsync<T, E>,
-    def: ResultLikeAwaitable<U, F>,
-    condition: (val: T) => unknown,
-  ): ResultAsync<T | U, E | F>;
-  $andAssertOr<U, F, A extends T>(
-    this: ResultAsync<T, E>,
-    def: ResultLikeAwaitable<T, E>,
-    condition: ((val: T) => unknown) | ((val: T) => val is A) = isTruthy,
-  ): ResultAsync<T | U | A | Truthy<T>, E | F> {
-    return new ResultAsync<T | U | A | Truthy<T>, E | F>(
+    mapError: (val: T) => F = mapCheckError as () => F,
+  ): ResultAsync<Truthy<T>, E | F | RetupleCheckFailedError<T>> {
+    return new ResultAsync<Truthy<T>, E | F | RetupleCheckFailedError<T>>(
       this.#inner.then(async (res) => {
-        if (res instanceof ResultErr || condition(res[1] as T)) {
+        if (res instanceof ResultErr) {
           return res;
         }
 
-        return asResult(await def);
+        return res[1]
+          ? (res as Result<Truthy<T>, E>)
+          : Err(mapError(res[1] as T));
       }),
     );
   }
 
   /**
-   * The same as {@link Retuple.$andAssertOrElse|$andAssertOrElse}, except it:
+   * The same as {@link Retuple.$andCheck|$andCheck}, except it:
    *
    * - can also accept an `async` default function;
    * - returns {@link ResultAsync}.
    */
-  $andAssertOrElse<U = T, F = E>(
+  $andCheck<U extends T = T>(
     this: ResultAsync<T, E>,
-    def: (val: T) => ResultLikeAwaitable<U, F>,
-  ): ResultAsync<Truthy<T> | U, E | F>;
-  $andAssertOrElse<U = T, F = E, A extends T = T>(
+    predicate: (val: T) => val is U,
+  ): ResultAsync<U, E | RetupleCheckFailedError<T>>;
+  $andCheck(
     this: ResultAsync<T, E>,
-    def: (val: T) => ResultLikeAwaitable<U, F>,
-    predicate: (val: T) => val is A,
-  ): ResultAsync<U | A, E | F>;
-  $andAssertOrElse<U = T, F = E>(
+    check: (val: T) => unknown,
+  ): ResultAsync<T, E | RetupleCheckFailedError<T>>;
+  $andCheck<U extends T = T, F = E>(
     this: ResultAsync<T, E>,
-    def: (val: T) => ResultLikeAwaitable<U, F>,
-    condition: (val: T) => unknown,
-  ): ResultAsync<T | U, E | F>;
-  $andAssertOrElse<U, F, A extends T>(
+    predicate: (val: T) => val is U,
+    mapError: (val: T) => F,
+  ): ResultAsync<U, E | F>;
+  $andCheck<F = E>(
     this: ResultAsync<T, E>,
-    def: (val: T) => ResultLikeAwaitable<T, E>,
-    condition: ((val: T) => unknown) | ((val: T) => val is A) = isTruthy,
-  ): ResultAsync<T | U | A | Truthy<T>, E | F> {
-    return new ResultAsync<T | U | A | Truthy<T>, E | F>(
+    check: (val: T) => unknown,
+    mapError: (val: T) => F,
+  ): ResultAsync<T, E | F>;
+  $andCheck<U extends T, F = E>(
+    this: ResultAsync<T, E>,
+    check: ((val: T) => unknown) | ((val: T) => val is U),
+    mapError: (val: T) => F = mapCheckError as () => F,
+  ): ResultAsync<T | U, E | F | RetupleCheckFailedError<T>> {
+    return new ResultAsync<T | U, E | F | RetupleCheckFailedError<T>>(
       this.#inner.then(async (res) => {
-        if (res instanceof ResultErr || condition(res[1] as T)) {
+        if (res instanceof ResultErr) {
           return res;
         }
 
-        return asResult(await def(res[1] as T));
+        return check(res[1] as T) ? res : Err(mapError(res[1] as T));
+      }),
+    );
+  }
+
+  /**
+   * The same as {@link Retuple.$andCheck|$andCheck}, except it:
+   *
+   * - can also accept an `async` default function;
+   * - returns {@link ResultAsync}.
+   */
+  $andFirst<U>(
+    this: ResultAsync<readonly [U?, ...any[]], E>,
+  ): ResultAsync<U, E | RetupleCheckFailedError<T>>;
+  $andFirst(
+    this: ResultAsync<readonly [], E>,
+  ): ResultAsync<never, E | RetupleCheckFailedError<T>>;
+  $andFirst<U, F = E>(
+    this: ResultAsync<readonly [U?, ...any[]], E>,
+    mapError: (val: T) => F,
+  ): ResultAsync<U, E | F>;
+  $andFirst<F = E>(
+    this: ResultAsync<readonly [], E>,
+    mapError: (val: T) => F,
+  ): ResultAsync<T, E | F>;
+  $andFirst<U, F = E>(
+    this: ResultAsync<readonly [U?, ...any[]], E> | ResultAsync<readonly [], E>,
+    mapError: (val: T) => F = mapCheckError as () => F,
+  ): ResultAsync<U, E | F | RetupleCheckFailedError<T>> {
+    return new ResultAsync<U, E | F | RetupleCheckFailedError<T>>(
+      this.#inner.then((res) => {
+        if (res instanceof ResultErr) {
+          return res;
+        }
+
+        const first = res[1]![0];
+
+        return first ? Ok(first) : Err(mapError(res[1] as T));
       }),
     );
   }
@@ -2212,8 +2287,8 @@ function mapTrue<E>(): E {
   return true as E;
 }
 
-function isTruthy<T>(val: T): val is Truthy<T> {
-  return !!val;
+function mapCheckError<T>(value: T): RetupleCheckFailedError<T> {
+  return new RetupleCheckFailedError(value);
 }
 
 interface Retuple<T, E> extends ResultLike<T, E> {
@@ -2541,187 +2616,149 @@ interface Retuple<T, E> extends ResultLike<T, E> {
   /**
    * Performs an assertion when this result is `Ok`:
    *
-   * - returning `Ok` containing the current ok value when it is truthy, and
-   *   when no predicate/condition function is provided. Narrows the `T` type
-   *   to include only truthy values;
-   * - returning `Ok` containing the current ok value when a
-   *   predicate/condition function  is provided and it returns a truthy value.
-   *   Narrows the `T` type to the predicate type (if any);
-   * - returning the default result when no predicate/condition function is
-   *   provided and the current ok value is falsey;
-   * - returning the default result when a predicate/condition function is
-   *   provided and it returns a falsey value.
+   * - returning `Ok` containing the current ok value when it is truthy.
+   *   Narrows the `T` type to include only truthy values;
+   * - returning `Err` containing the return value of the map error function
+   *   when the ok value is falsey;
+   * - returning `Err` containing {@link RetupleCheckFailedError} when the
+   *   ok value is falsey, and when no map error function is provided.
    *
    * Otherwise returns `Err` containing the current error value.
    *
    * @example
    *
    * ```ts
-   * const result: Result<string | null, string> = Ok("test");
-   * const asserted = result.$andAssertOr(Ok("ok-default"));
+   * const result: Result<string | null, never> = Ok("test");
+   * const asserted = result.$andAssert();
    *
-   * asserted satisfies Result<string, string>;
+   * asserted satisfies Result<string, RetupleCheckFailedError<string | null>>;
    * assert.equal(asserted.$unwrap(), "test");
    * ```
    *
    * @example
    *
    * ```ts
-   * const result: Result<string | null, string> = Ok("test");
-   * const asserted = result.$andAssertOr(
-   *    Err("err-default"),
-   *    (val): val is "test" => val === "test",
+   * const result: Result<string | null | undefined, never> = Ok(null);
+   * const asserted = result.$andAssert(
+   *   (val) => val === null ? "value was null" : "value was undefined"
    * );
-   *
-   * asserted satisfies Result<"test", string>;
-   * assert.equal(asserted.$unwrap(), "test");
-   * ```
-   *
-   * @example
-   *
-   * ```ts
-   * const result: Result<string | null, string> = Ok(null);
-   * const asserted = result.$andAssertOr(Ok("ok-default"));
    *
    * asserted satisfies Result<string, string>;
-   * assert.equal(asserted.$unwrap(), "ok-default");
-   * ```
-   *
-   * @example
-   *
-   * ```ts
-   * const result: Result<string | null, string> = Ok("value");
-   * const asserted = result.$andAssertOr(
-   *    Err("err-default"),
-   *    (val): val is "test" => val === "test",
-   * );
-   *
-   * asserted satisfies Result<"test", string>;
-   * assert.equal(asserted.$unwrapErr(), "err-default");
-   * ```
-   *
-   * @example
-   *
-   * ```ts
-   * const result: Result<string | null, string> = Err("test");
-   * const asserted = result.$andAssertOr(
-   *    Err("err-default"),
-   *    (val): val is "test" => val === "test",
-   * );
-   *
-   * asserted satisfies Result<"test", string>;
-   * assert.equal(asserted.$unwrapErr(), "test");
+   * assert.equal(asserted.$unwrapErr(), "value was null");
    * ```
    */
-  $andAssertOr<U = T, F = E>(
+  $andAssert(
     this: Result<T, E>,
-    def: ResultLike<U, F>,
-  ): Result<Truthy<T> | U, E | F>;
-  $andAssertOr<U = T, F = E, A extends T = T>(
+  ): Result<Truthy<T>, E | RetupleCheckFailedError<T>>;
+  $andAssert<F = E>(
     this: Result<T, E>,
-    def: ResultLike<U, F>,
-    predicate: (val: T) => val is A,
-  ): Result<U | A, E | F>;
-  $andAssertOr<U = T, F = E>(
-    this: Result<T, E>,
-    def: ResultLike<U, F>,
-    condition: (val: T) => unknown,
-  ): Result<T | U, E | F>;
+    mapError: (val: T) => F,
+  ): Result<Truthy<T>, E | F>;
 
   /**
-   * Performs an assertion when this result is `Ok`:
+   * Performs a check when this result is `Ok`:
    *
-   * - returning `Ok` containing the current ok value when it is truthy, and
-   *   when no predicate/condition function is provided. Narrows the `T` type
-   *   to include only truthy values;
-   * - returning `Ok` containing the current ok value when a
-   *   predicate/condition function  is provided and it returns a truthy value.
-   *   Narrows the `T` type to the predicate type (if any);
-   * - returning the result returned by the default function when no
-   *   predicate/condition function is provided and the current ok value is
-   *   falsey;
-   * - returning the result returned by the default function when a
-   *   predicate/condition function is  provided and it returns a falsey value.
+   * - returning `Ok` containing the current ok value when the predicate/check
+   *   function returns true. Narrows the `T` type based on the check function;
+   * - returning `Err` containing the return value of the map error function
+   *   when the ok value fails the check;
+   * - returning `Err` containing {@link RetupleCheckFailedError} when the
+   *   ok value fails the check, and when no map error function is provided.
    *
    * Otherwise returns `Err` containing the current error value.
    *
    * @example
    *
    * ```ts
-   * const result: Result<string | null, string> = Ok("test");
-   * const asserted = result.$andAssertOrElse(
-   *    (val) => Ok(`ok-default:${val}`),
-   * );
+   * const result: Result<string, never> = Ok("test");
+   * const asserted = result.$andCheck((val) => val === "test");
    *
-   * asserted satisfies Result<string, string>;
+   * asserted satisfies Result<string, RetupleCheckFailedError<string>>;
    * assert.equal(asserted.$unwrap(), "test");
    * ```
    *
    * @example
    *
    * ```ts
-   * const result: Result<string | null, string> = Ok("test");
-   * const asserted = result.$andAssertOrElse(
-   *    (val) => Err(`err-default:${val}`),
-   *    (val): val is "test" => val === "test",
+   * const result: Result<string, never> = Ok("test");
+   * const checked = result.$andCheck(
+   *   (val) => val === "value",
+   *   (val) => `value was ${val}`,
    * );
    *
-   * asserted satisfies Result<"test", string>;
-   * assert.equal(asserted.$unwrap(), "test");
-   * ```
-   *
-   * @example
-   *
-   * ```ts
-   * const result: Result<string | null, string> = Ok(null);
-   * const asserted = result.$andAssertOrElse(
-   *    (val) => Ok(`ok-default:${val}`),
-   * );
-   *
-   * asserted satisfies Result<string, string>;
-   * assert.equal(asserted.$unwrap(), "ok-default:null");
-   * ```
-   *
-   * @example
-   *
-   * ```ts
-   * const result: Result<string | null, string> = Ok("value");
-   * const asserted = result.$andAssertOrElse(
-   *    (val) => Err(`err-default:${val}`),
-   *    (val): val is "test" => val === "test",
-   * );
-   *
-   * asserted satisfies Result<"test", string>;
-   * assert.equal(asserted.$unwrapErr(), "err-default:value");
-   * ```
-   *
-   * @example
-   *
-   * ```ts
-   * const result: Result<string | null, string> = Err("test");
-   * const asserted = result.$andAssertOrElse(
-   *    (val) => Err(`err-default:${val}`),
-   *    (val): val is "test" => val === "test",
-   * );
-   *
-   * asserted satisfies Result<"test", string>;
-   * assert.equal(asserted.$unwrapErr(), "test");
+   * checked satisfies Result<"value", string>;
+   * assert.equal(checked.$unwrapErr(), "value was test");
    * ```
    */
-  $andAssertOrElse<U = T, F = E>(
+  $andCheck<U extends T = T>(
     this: Result<T, E>,
-    def: (val: T) => ResultLike<U, F>,
-  ): Result<Truthy<T> | U, E | F>;
-  $andAssertOrElse<U = T, F = E, A extends T = T>(
+    predicate: (val: T) => val is U,
+  ): Result<U, E | RetupleCheckFailedError<T>>;
+  $andCheck(
     this: Result<T, E>,
-    def: (val: T) => ResultLike<U, F>,
-    predicate: (val: T) => val is A,
-  ): Result<U | A, E | F>;
-  $andAssertOrElse<U = T, F = E>(
+    check: (val: T) => unknown,
+  ): Result<T, E | RetupleCheckFailedError<T>>;
+  $andCheck<U extends T = T, F = E>(
     this: Result<T, E>,
-    def: (val: T) => ResultLike<U, F>,
-    condition: (val: T) => unknown,
-  ): Result<T | U, E | F>;
+    predicate: (val: T) => val is U,
+    mapError: (val: T) => F,
+  ): Result<U, E | F>;
+  $andCheck<F = E>(
+    this: Result<T, E>,
+    check: (val: T) => unknown,
+    mapError: (val: T) => F,
+  ): Result<T, E | F>;
+
+  /**
+   * Checks the first element of the contained array when when this result
+   * is `Ok`:
+   *
+   * - returning `Ok` containing the first array element when it is truthy.
+   *   Narrows the type to include only truthy values;
+   * - returning `Err` containing the return value of the map error function
+   *   when the first array element fails the check;
+   * - returning `Err` containing {@link RetupleCheckFailedError} when the
+   *   first array elemnt fails the check, and when no map error function is
+   *   provided.
+   *
+   * Otherwise returns `Err` containing the current error value.
+   *
+   * @example
+   *
+   * ```ts
+   * const result: Result<(string | null)[], never> = Ok(["test", null]);
+   * const first = result.$andFirst();
+   *
+   * first satisfies Result<string, RetupleCheckFailedError<string | null>>;
+   * assert.equal(first.$unwrap(), "test");
+   * ```
+   *
+   * @example
+   *
+   * ```ts
+   * const result: Result<(string | null | undefined)[], never> = Ok([null, "test"]);
+   * const first = result.$andFirst(
+   *   (val) => val === null ? "value was null" : "value was undefined",
+   * );
+   *
+   * first satisfies Result<string, string>;
+   * assert.equal(first.$unwrapErr(), "value was null");
+   * ```
+   */
+  $andFirst(
+    this: Result<readonly [], E>,
+  ): Result<never, E | RetupleCheckFailedError<[]>>;
+  $andFirst<U>(
+    this: Result<readonly [U?, ...any[]], E>,
+  ): Result<Truthy<U>, E | RetupleCheckFailedError<T>>;
+  $andFirst<F = E>(
+    this: Result<readonly [], E>,
+    mapError: (val: readonly []) => F,
+  ): Result<never, E | F>;
+  $andFirst<U, F = E>(
+    this: Result<readonly [U?, ...any[]], E>,
+    mapError: (val: T) => F,
+  ): Result<Truthy<U>, E | F>;
 
   /**
    * Returns `Ok` containing the return value of the map function when this
@@ -2749,11 +2786,11 @@ interface Retuple<T, E> extends ResultLike<T, E> {
    * );
    * ```
    */
-  $map<U>(this: Result<T, E>, f: (value: T) => U): Result<U, E>;
+  $map<U>(this: Result<T, E>, f: (val: T) => U): Result<U, E>;
 
   /**
-   * Returns `Err` containing the return value of the map function when this
-   * result is `Err`.
+   * Returns `Err` containing the return value of the map error function
+   * when this result is `Err`.
    *
    * Otherwise, returns `Ok` containing the current ok value.
    *
@@ -3282,10 +3319,6 @@ interface Retuple<T, E> extends ResultLike<T, E> {
    * Returns the contained {@link Result} when this result is `Ok`.
    *
    * Otherwise returns `Err` containing the current error value.
-   *
-   * This method should only be called when the `T` type is `Result`. This
-   * is enforced with a type constraint. If the ok value is not
-   * a result, `RetupleFlattenFailed` is thrown.
    *
    * @example
    *

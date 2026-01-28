@@ -265,46 +265,53 @@ describe("Err", () => {
     });
   });
 
-  describe("$andAssertOr", () => {
-    it("should not invoke the predicate/condition function", () => {
-      const fnCond = vi.fn(() => true);
+  describe("$andAssert", () => {
+    it("should not invoke the map error function", () => {
+      const fnMapErr = vi.fn(() => true);
 
-      Err().$andAssertOr(Ok(), fnCond);
+      Err().$andAssert(fnMapErr);
 
-      expect(fnCond).not.toHaveBeenCalled();
+      expect(fnMapErr).not.toHaveBeenCalled();
     });
 
     it("should return Err with the contained value", () => {
-      expect(Err("test").$andAssertOr(Ok(), () => true)).toStrictEqual(
-        Err("test"),
-      );
+      expect(Err("test").$andAssert()).toStrictEqual(Err("test"));
     });
   });
 
-  describe("$andAssertOrElse", () => {
-    it("should not invoke the default function", () => {
-      const fnDefault = vi.fn(() => Ok());
+  describe("$andCheck", () => {
+    it("should not invoke the check function", () => {
+      const fnCheck = vi.fn(() => Ok());
 
-      Err().$andAssertOrElse(fnDefault, () => true);
+      Err().$andCheck(fnCheck);
 
-      expect(fnDefault).not.toHaveBeenCalled();
+      expect(fnCheck).not.toHaveBeenCalled();
     });
 
-    it("should not invoke the predicate/condition function", () => {
-      const fnCond = vi.fn(() => true);
+    it("should not invoke the map error function", () => {
+      const fnMapErr = vi.fn(() => true);
 
-      Err().$andAssertOrElse(() => Ok(), fnCond);
+      Err().$andCheck(() => false, fnMapErr);
 
-      expect(fnCond).not.toHaveBeenCalled();
+      expect(fnMapErr).not.toHaveBeenCalled();
     });
 
     it("should return Err with the contained value", () => {
-      expect(
-        Err("test").$andAssertOrElse(
-          () => Ok(),
-          () => true,
-        ),
-      ).toStrictEqual(Err("test"));
+      expect(Err("test").$andCheck(() => true)).toStrictEqual(Err("test"));
+    });
+  });
+
+  describe("$andFirst", () => {
+    it("should not invoke the map error function", () => {
+      const fnMapErr = vi.fn(() => true);
+
+      Err().$andFirst(fnMapErr);
+
+      expect(fnMapErr).not.toHaveBeenCalled();
+    });
+
+    it("should return Err with the contained value", () => {
+      expect(Err("test").$andFirst()).toStrictEqual(Err("test"));
     });
   });
 

@@ -17,6 +17,7 @@ import {
   Err,
   RetupleUnwrapErrFailed,
   RetupleCaughtValueError,
+  RetupleCheckFailedError,
 } from "../src/index.js";
 
 describe("Ok", () => {
@@ -241,158 +242,108 @@ describe("Ok", () => {
     });
   });
 
-  describe("$andAssertOr", () => {
-    it("should invoke the predicate/condition function with the contained value when provided", () => {
-      const fnCond = vi.fn(() => true);
+  describe("$andAssert", () => {
+    it("should invoke the map error function with the contained value when the contained value is falsey", () => {
+      const fnMapErr = vi.fn(() => Ok());
 
-      Ok("test").$andAssertOr(Ok(), fnCond);
+      Ok("").$andCheck(fnMapErr);
 
-      expect(fnCond).toHaveBeenCalledExactlyOnceWith("test");
+      expect(fnMapErr).toHaveBeenCalledExactlyOnceWith("");
     });
 
-    it("should throw when the predicate/condition function throws", () => {
-      expect(capture(() => Ok().$andAssertOr(Ok(), fnThrow))).toBe(errThrow);
+    it("should throw when the map error function throws", () => {
+      expect(capture(() => Ok().$andCheck(fnThrow))).toBe(errThrow);
     });
 
-    it("should return Ok with the contained value when the contained value is truthy, and when no predicate/condition function is provided", () => {
-      expect(Ok("test").$andAssertOr(Ok())).toStrictEqual(Ok("test"));
+    it("should return Ok with the contained value when the contained value is truthy", () => {
+      expect(Ok("test").$andAssert()).toStrictEqual(Ok("test"));
     });
 
-    it("should return Ok with the contained value when the predicate/condition function returns a truthy value", () => {
-      expect(Ok("test").$andAssertOr(Ok(), () => true)).toStrictEqual(
-        Ok("test"),
-      );
-      expect(Ok("test").$andAssertOr(Ok(), () => "truthy")).toStrictEqual(
-        Ok("test"),
-      );
+    it("should return Err containing the return value of the map error function when the contained value is falsey", () => {
+      expect(Ok("").$andAssert(() => "error")).toStrictEqual(Err("error"));
     });
 
-    it("should return the default Result when the contained value is falsey, and when no predicate/condition function is provided", () => {
-      expect(Ok("").$andAssertOr(Ok("default"))).toStrictEqual(Ok("default"));
-    });
-
-    it("should return the default Result when the predicate/condition function returns a falsey value", () => {
-      expect(Ok("test").$andAssertOr(Ok("default"), () => false)).toStrictEqual(
-        Ok("default"),
-      );
-
-      expect(Ok("test").$andAssertOr(Ok("default"), () => "")).toStrictEqual(
-        Ok("default"),
-      );
-    });
-
-    it("should handle custom objects with the ResultLikeSymbol", () => {
-      expect(Ok().$andAssertOr(ResultLikeOk, () => false)).toStrictEqual(
-        Ok("test"),
-      );
-
-      expect(Ok().$andAssertOr(ResultLikeErr, () => false)).toStrictEqual(
-        Err("test"),
+    it("should return Err containing RetupleCheckFailedError contained value is falsey, and when no map error function is provided", () => {
+      expect(Ok("").$andAssert()).toStrictEqual(
+        Err(new RetupleCheckFailedError("")),
       );
     });
   });
 
-  describe("$andAssertOrElse", () => {
-    it("should invoke the default function with the contained value when the contained value is falsey, and when no predicate/condition function is provided", () => {
-      const fnDefault = vi.fn(() => Ok());
+  describe("$andCheck", () => {
+    it("should invoke the check function with the contained value", () => {
+      const fnCheck = vi.fn(() => true);
 
-      Ok("").$andAssertOrElse(fnDefault);
+      Ok("").$andCheck(fnCheck);
 
-      expect(fnDefault).toHaveBeenCalledExactlyOnceWith("");
+      expect(fnCheck).toHaveBeenCalledExactlyOnceWith("");
     });
 
-    it("should invoke the default function with the contained value when the predicate/condition function returns false", () => {
-      const fnDefault = vi.fn(() => Ok());
+    it("should invoke the map error function with the contained value when the check function returns a falsey value", () => {
+      const fnMapErr = vi.fn(() => "error");
 
-      Ok("test").$andAssertOrElse(fnDefault, () => false);
+      Ok("").$andCheck(() => false, fnMapErr);
 
-      expect(fnDefault).toHaveBeenCalledExactlyOnceWith("test");
+      expect(fnMapErr).toHaveBeenCalledExactlyOnceWith("");
     });
 
-    it("should invoke the default function with the contained value when the predicate/condition function returns a falsey value", () => {
-      const fnDefault = vi.fn(() => Ok());
-
-      Ok("test").$andAssertOrElse(fnDefault, () => "");
-
-      expect(fnDefault).toHaveBeenCalledExactlyOnceWith("test");
+    it("should throw when the check function throws", () => {
+      expect(capture(() => Ok().$andCheck(fnThrow))).toBe(errThrow);
     });
 
-    it("should throw when the default function throws", () => {
-      expect(capture(() => Ok().$andAssertOrElse(fnThrow, () => false))).toBe(
+    it("should throw when the map error function throws", () => {
+      expect(capture(() => Ok().$andCheck(() => false, fnThrow))).toBe(
         errThrow,
       );
     });
 
-    it("should invoke the predicate/condition function with the contained value when provided", () => {
-      const fnCond = vi.fn(() => true);
-
-      Ok("test").$andAssertOrElse(() => Ok(), fnCond);
-
-      expect(fnCond).toHaveBeenCalledExactlyOnceWith("test");
+    it("should return Ok with the contained value when the check function returns a truthy value", () => {
+      expect(Ok("test").$andCheck(() => true)).toStrictEqual(Ok("test"));
     });
 
-    it("should throw when the predicate/condition function throws", () => {
-      expect(capture(() => Ok().$andAssertOrElse(() => Ok(), fnThrow))).toBe(
-        errThrow,
+    it("should return Err containing the return value of the map error function when the check function returns a falsey value", () => {
+      expect(
+        Ok("").$andCheck(
+          () => false,
+          () => "error",
+        ),
+      ).toStrictEqual(Err("error"));
+    });
+
+    it("should return Err containing RetupleCheckFailedError when the check function returns a falsey value, and when no map error function is provided", () => {
+      expect(Ok("").$andCheck(() => false)).toStrictEqual(
+        Err(new RetupleCheckFailedError("")),
+      );
+    });
+  });
+
+  describe("$andFirst", () => {
+    it("should invoke the map error function with the contained value when the first array element is falsey", () => {
+      const fnMapErr = vi.fn(() => "error");
+
+      Ok([""]).$andFirst(fnMapErr);
+
+      expect(fnMapErr).toHaveBeenCalledExactlyOnceWith([""]);
+    });
+
+    it("should throw when the map error function throws", () => {
+      expect(capture(() => Ok([]).$andFirst(fnThrow))).toBe(errThrow);
+    });
+
+    it("should return Ok with the first array element when it is truthy", () => {
+      expect(Ok(["test", ""]).$andFirst()).toStrictEqual(Ok("test"));
+    });
+
+    it("should return Err containing the return value of the map error function when the first array element is falsey", () => {
+      expect(Ok(["", "test"]).$andFirst(() => "error")).toStrictEqual(
+        Err("error"),
       );
     });
 
-    it("should return Ok with the contained value when the contained value is truthy, and when no predicate/condition function is provided", () => {
-      expect(Ok("test").$andAssertOrElse(() => Ok())).toStrictEqual(Ok("test"));
-    });
-
-    it("should return Ok with the contained value when the predicate/condition function returns a truthy value", () => {
-      expect(
-        Ok("test").$andAssertOrElse(
-          () => Ok(),
-          () => true,
-        ),
-      ).toStrictEqual(Ok("test"));
-
-      expect(
-        Ok("test").$andAssertOrElse(
-          () => Ok(),
-          () => "truthy",
-        ),
-      ).toStrictEqual(Ok("test"));
-    });
-
-    it("should return the default Result when the contained value is falsey, and when no predicate/condition function is provided", () => {
-      expect(Ok("").$andAssertOrElse(() => Ok("default"))).toStrictEqual(
-        Ok("default"),
+    it("should return Err containing RetupleCheckFailedError when the first array element is falsey, and when no map error function is provided", () => {
+      expect(Ok(["", "test"]).$andFirst()).toStrictEqual(
+        Err(new RetupleCheckFailedError(["", "test"])),
       );
-    });
-
-    it("should return the default Result when the predicate/condition function returns a falsey value", () => {
-      expect(
-        Ok("test").$andAssertOrElse(
-          () => Ok("default"),
-          () => false,
-        ),
-      ).toStrictEqual(Ok("default"));
-
-      expect(
-        Ok("test").$andAssertOrElse(
-          () => Ok("default"),
-          () => "",
-        ),
-      ).toStrictEqual(Ok("default"));
-    });
-
-    it("should handle custom objects with the ResultLikeSymbol", () => {
-      expect(
-        Ok().$andAssertOrElse(
-          () => ResultLikeOk,
-          () => false,
-        ),
-      ).toStrictEqual(Ok("test"));
-
-      expect(
-        Ok().$andAssertOrElse(
-          () => ResultLikeErr,
-          () => false,
-        ),
-      ).toStrictEqual(Err("test"));
     });
   });
 

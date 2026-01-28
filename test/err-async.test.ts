@@ -206,73 +206,61 @@ describe("ResultAsync (Err)", () => {
     });
   });
 
-  describe("$andAssertOr", () => {
-    it("should not invoke the predicate/condition function", async () => {
-      const fnCond = vi.fn(() => true);
-
-      await Err().$async().$andAssertOr(Ok(), fnCond);
-
-      expect(fnCond).not.toHaveBeenCalled();
-    });
-
-    it("should not reject when the default promise rejects", async () => {
-      const rejected = fnReject();
+  describe("$andAssert", () => {
+    it("should not invoke the map error function", async () => {
+      const fnMapErr = vi.fn(() => "error");
 
       await expect(
-        Err("test")
-          .$async()
-          .$andAssertOr(rejected, () => true),
-      ).resolves.toStrictEqual(Err("test"));
-      await rejected.catch(() => {});
+        Err("").$async().$andAssert(fnMapErr),
+      ).resolves.toStrictEqual(Err(""));
     });
 
-    it("should resolve to Err with the contained value", async () => {
-      await expect(
-        Err("test").$async().$andAssertOr(Ok()),
-      ).resolves.toStrictEqual(Err("test"));
+    it("should return Err with the contained value", async () => {
+      await expect(Err("test").$async().$and(Ok())).resolves.toStrictEqual(
+        Err("test"),
+      );
     });
   });
 
-  describe("$andAssertOrElse", () => {
-    it("should not invoke the default function", async () => {
-      const fnDefault = vi.fn(() => Ok());
+  describe("$andCheck", () => {
+    it("should not invoke the check function", async () => {
+      const fnCheck = vi.fn(() => "error");
 
-      await Err()
-        .$async()
-        .$andAssertOrElse(fnDefault, () => false);
-
-      expect(fnDefault).not.toHaveBeenCalled();
+      await expect(Err("").$async().$andCheck(fnCheck)).resolves.toStrictEqual(
+        Err(""),
+      );
     });
 
-    it("should not invoke the predicate/condition function", async () => {
-      const fnCond = vi.fn(() => true);
-
-      await Err().$async().$andAssertOr(Ok(), fnCond);
-
-      expect(fnCond).not.toHaveBeenCalled();
-    });
-
-    it("should not reject when the default promise rejects", async () => {
-      const rejected = fnReject();
+    it("should not invoke the map error function", async () => {
+      const fnMapErr = vi.fn(() => "error");
 
       await expect(
-        Err("test")
+        Err("")
           .$async()
-          .$andAssertOr(rejected, () => true),
-      ).resolves.toStrictEqual(Err("test"));
-
-      await rejected.catch(() => {});
+          .$andCheck(() => false, fnMapErr),
+      ).resolves.toStrictEqual(Err(""));
     });
 
-    it("should resolve to Err with the contained value", async () => {
+    it("should return Err with the contained value", async () => {
+      await expect(Err("test").$async().$andFirst()).resolves.toStrictEqual(
+        Err("test"),
+      );
+    });
+  });
+
+  describe("$andFirst", () => {
+    it("should not invoke the map error function", async () => {
+      const fnMapErr = vi.fn(() => "error");
+
       await expect(
-        Err("test")
-          .$async()
-          .$andAssertOrElse(
-            () => Ok(),
-            () => true,
-          ),
-      ).resolves.toStrictEqual(Err("test"));
+        Err(["", "test"]).$async().$andFirst(fnMapErr),
+      ).resolves.toStrictEqual(Err(["", "test"]));
+    });
+
+    it("should return Err with the contained value", async () => {
+      await expect(Err("test").$async().$and(Ok())).resolves.toStrictEqual(
+        Err("test"),
+      );
     });
   });
 

@@ -14,6 +14,7 @@ import {
   Err,
   RetupleUnwrapErrFailed,
   RetupleCaughtValueError,
+  RetupleCheckFailedError,
 } from "../src/index.js";
 
 describe("ResultAsync (Ok)", async () => {
@@ -178,239 +179,130 @@ describe("ResultAsync (Ok)", async () => {
     });
   });
 
-  describe("$andAssertOr", () => {
-    it("should invoke the predicate/condition function with the contained value when provided", async () => {
-      const fnCond = vi.fn(() => true);
+  describe("$andAssert", () => {
+    it("should invoke the map error function with the contained value when the contained value is falsey, and when no predicate/condition function is provided", async () => {
+      const fnMapErr = vi.fn(() => "error");
 
-      await Ok("test").$async().$andAssertOr(Ok(), fnCond);
+      await Ok("").$async().$andAssert(fnMapErr);
 
-      expect(fnCond).toHaveBeenCalledExactlyOnceWith("test");
+      expect(fnMapErr).toHaveBeenCalledExactlyOnceWith("");
     });
 
-    it("should reject when the predicate/condition returns a falsey value, and when the default promise rejects", async () => {
-      await expect(
-        Ok()
-          .$async()
-          .$andAssertOr(fnReject(), () => false),
-      ).rejects.toBe(errReject);
+    it("should reject when the map error function throws", async () => {
+      await expect(Ok().$async().$andAssert(fnThrow)).rejects.toBe(errThrow);
     });
 
-    it("should reject when the predicate/condition function throws", async () => {
-      await expect(Ok().$async().$andAssertOr(Ok(), fnThrow)).rejects.toBe(
-        errThrow,
+    it("should resolve to Ok with the contained value when the contained value is truthy", async () => {
+      await expect(Ok("test").$async().$andAssert()).resolves.toStrictEqual(
+        Ok("test"),
       );
     });
 
-    it("should not reject when the predicate/condition function returns a truthy value, and when the default promise rejects", async () => {
-      const rejected = fnReject();
-
+    it("should resolve to Err containing the return value of the map error function when the contained value is falsey", async () => {
       await expect(
-        Ok("test")
+        Ok(false)
           .$async()
-          .$andAssertOr(rejected, () => true),
-      ).resolves.toStrictEqual(Ok("test"));
-
-      await rejected.catch(() => {});
+          .$andAssert(() => "error"),
+      ).resolves.toStrictEqual(Err("error"));
     });
 
-    it("should resolve to Ok with the contained value when the contained value is truthy, and when no predicate/condition function is provided", async () => {
-      await expect(
-        Ok("test").$async().$andAssertOr(Ok()),
-      ).resolves.toStrictEqual(Ok("test"));
-    });
-
-    it("should resolve to Ok with the contained value when the predicate/condition function returns a truthy value", async () => {
-      await expect(
-        Ok("test")
-          .$async()
-          .$andAssertOr(Ok(), () => true),
-      ).resolves.toStrictEqual(Ok("test"));
-
-      await expect(
-        Ok("test")
-          .$async()
-          .$andAssertOr(Ok(), () => "truthy"),
-      ).resolves.toStrictEqual(Ok("test"));
-    });
-
-    it("should resolve to the default Result when the contained value is falsey, and when no predicate/condition function is provided", async () => {
-      await expect(
-        Ok("").$async().$andAssertOr(Ok("default")),
-      ).resolves.toStrictEqual(Ok("default"));
-    });
-
-    it("should resolve to the default Result when the predicate/condition function returns a falsey value", async () => {
-      await expect(
-        Ok("test")
-          .$async()
-          .$andAssertOr(Ok("default"), () => false),
-      ).resolves.toStrictEqual(Ok("default"));
-
-      await expect(
-        Ok("test")
-          .$async()
-          .$andAssertOr(Ok("default"), () => ""),
-      ).resolves.toStrictEqual(Ok("default"));
-    });
-
-    it("should handle custom objects with the ResultLikeSymbol", async () => {
-      await expect(
-        Ok()
-          .$async()
-          .$andAssertOr(ResultLikeOk, () => false),
-      ).resolves.toStrictEqual(Ok("test"));
-
-      await expect(
-        Ok()
-          .$async()
-          .$andAssertOr(ResultLikeErr, () => false),
-      ).resolves.toStrictEqual(Err("test"));
-
-      await expect(
-        Ok()
-          .$async()
-          .$andAssertOr(Promise.resolve(ResultLikeOk), () => false),
-      ).resolves.toStrictEqual(Ok("test"));
-
-      await expect(
-        Ok()
-          .$async()
-          .$andAssertOr(Promise.resolve(ResultLikeErr), () => false),
-      ).resolves.toStrictEqual(Err("test"));
+    it("should resolve to Err containing RetupleCheckFailedError contained value is falsey, and when no map error function is provided", async () => {
+      await expect(Ok("").$async().$andAssert()).resolves.toStrictEqual(
+        Err(new RetupleCheckFailedError("")),
+      );
     });
   });
 
-  describe("$andAssertOrElse", () => {
-    it("should invoke the default function with the contained value when the contained value is falsey, and when no predicate/condition function is provided", async () => {
-      const fnDefault = vi.fn(() => Ok());
+  describe("$andCheck", () => {
+    it("should invoke the check function with the contained value", async () => {
+      const fnCheck = vi.fn(() => true);
 
-      await Ok("").$async().$andAssertOrElse(fnDefault);
+      await Ok("").$async().$andCheck(fnCheck);
 
-      expect(fnDefault).toHaveBeenCalledExactlyOnceWith("");
+      expect(fnCheck).toHaveBeenCalledExactlyOnceWith("");
     });
 
-    it("should invoke the default function with the contained value when the predicate/condition function returns false", async () => {
-      const fnDefault = vi.fn(() => Ok());
+    it("should invoke the map error function with the contained value when the check function returns a falsey value", async () => {
+      const fnMapErr = vi.fn(() => "error");
 
-      await Ok("test")
+      await Ok("")
         .$async()
-        .$andAssertOrElse(fnDefault, () => false);
+        .$andCheck(() => false, fnMapErr);
 
-      expect(fnDefault).toHaveBeenCalledExactlyOnceWith("test");
+      expect(fnMapErr).toHaveBeenCalledExactlyOnceWith("");
     });
 
-    it("should invoke the default function with the contained value when the predicate/condition function returns a falsey value", async () => {
-      const fnDefault = vi.fn(() => Ok());
-
-      await Ok("test")
-        .$async()
-        .$andAssertOrElse(fnDefault, () => "");
-
-      expect(fnDefault).toHaveBeenCalledExactlyOnceWith("test");
+    it("should reject when the check function throws", async () => {
+      await expect(Ok().$async().$andCheck(fnThrow)).rejects.toBe(errThrow);
     });
 
-    it("should reject when the default function throws", async () => {
+    it("should reject when the map error function throws", async () => {
       await expect(
         Ok()
           .$async()
-          .$andAssertOrElse(fnThrow, () => false),
+          .$andCheck(() => false, fnThrow),
       ).rejects.toBe(errThrow);
     });
 
-    it("should reject when the default function rejects", async () => {
-      await expect(
-        Ok()
-          .$async()
-          .$andAssertOrElse(fnReject, () => false),
-      ).rejects.toBe(errReject);
-    });
-
-    it("should reject when the condition/predicate function throws", async () => {
-      await expect(
-        Ok()
-          .$async()
-          .$andAssertOrElse(() => Ok(), fnThrow),
-      ).rejects.toBe(errThrow);
-    });
-
-    it("should resolve to Ok with the contained value when the contained value is truthy, and when no condition/predicate function is provided", async () => {
+    it("should resolve to Ok with the contained value when the check function returns a truthy value", async () => {
       await expect(
         Ok("test")
           .$async()
-          .$andAssertOrElse(() => Ok()),
+          .$andCheck(() => true),
       ).resolves.toStrictEqual(Ok("test"));
     });
 
-    it("should resolve to Ok with the contained value when the condition/predicate function returns a truthy value", async () => {
-      await expect(
-        Ok("test")
-          .$async()
-          .$andAssertOrElse(
-            () => Ok(),
-            () => true,
-          ),
-      ).resolves.toStrictEqual(Ok("test"));
-
-      await expect(
-        Ok("test")
-          .$async()
-          .$andAssertOrElse(
-            () => Ok(),
-            () => "truthy",
-          ),
-      ).resolves.toStrictEqual(Ok("test"));
-    });
-
-    it("should resolve to the default Result when the contained value is falsey, and when no condition/predicate function is provided", async () => {
+    it("should resolve to Err containing the return value of the map error function when the check function returns a falsey value", async () => {
       await expect(
         Ok(false)
           .$async()
-          .$andAssertOrElse(() => Ok("default")),
-      ).resolves.toStrictEqual(Ok("default"));
-
-      await expect(
-        Ok(false)
-          .$async()
-          .$andAssertOrElse(async () => Ok("default")),
-      ).resolves.toStrictEqual(Ok("default"));
+          .$andCheck(
+            () => false,
+            () => "error",
+          ),
+      ).resolves.toStrictEqual(Err("error"));
     });
 
-    it("should handle custom objects with the ResultLikeSymbol", async () => {
+    it("should resolve to Err containing RetupleCheckFailedError when the check function returns a falsey value, and when no map error function is provided", async () => {
       await expect(
-        Ok()
+        Ok("")
           .$async()
-          .$andAssertOrElse(
-            () => ResultLikeOk,
-            () => false,
-          ),
+          .$andCheck(() => false),
+      ).resolves.toStrictEqual(Err(new RetupleCheckFailedError("")));
+    });
+  });
+
+  describe("$andFirst", () => {
+    it("should invoke the map error function with the contained value when the first resolved array element is falsey", async () => {
+      const fnMapErr = vi.fn(() => "error");
+
+      await Ok([""]).$async().$andFirst(fnMapErr);
+
+      expect(fnMapErr).toHaveBeenCalledExactlyOnceWith([""]);
+    });
+
+    it("should reject when the map error function throws", async () => {
+      await expect(Ok([]).$async().$andFirst(fnThrow)).rejects.toBe(errThrow);
+    });
+
+    it("should resolved to Ok with the first resolved array element when it is truthy", async () => {
+      await expect(
+        Ok(["test", ""]).$async().$andFirst(),
       ).resolves.toStrictEqual(Ok("test"));
+    });
 
+    it("should return Err containing the return value of the map error function when the first array element is falsey", async () => {
       await expect(
-        Ok()
+        Ok(["", "test"])
           .$async()
-          .$andAssertOrElse(
-            () => ResultLikeErr,
-            () => false,
-          ),
-      ).resolves.toStrictEqual(Err("test"));
+          .$andFirst(() => "error"),
+      ).resolves.toStrictEqual(Err("error"));
+    });
 
+    it("should return Err containing RetupleCheckFailedError when the first array element is falsey, and when no map error function is provided", async () => {
       await expect(
-        Ok()
-          .$async()
-          .$andAssertOrElse(
-            async () => ResultLikeOk,
-            () => false,
-          ),
-      ).resolves.toStrictEqual(Ok("test"));
-
-      await expect(
-        Ok()
-          .$async()
-          .$andAssertOrElse(
-            async () => ResultLikeErr,
-            () => false,
-          ),
-      ).resolves.toStrictEqual(Err("test"));
+        Ok(["", "test"]).$async().$andFirst(),
+      ).resolves.toStrictEqual(Err(new RetupleCheckFailedError(["", "test"])));
     });
   });
 
