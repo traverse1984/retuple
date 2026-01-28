@@ -115,5 +115,37 @@ describe("Module", () => {
     it("should include the $safeRetry function", () => {
       expect(rt.Result.$safeRetry).toBeTypeOf("function");
     });
+
+    it("should include the $all function", () => {
+      expect(rt.Result.$all).toBeTypeOf("function");
+    });
+
+    it("should include the $allPromised function", () => {
+      expect(rt.Result.$allPromised).toBeTypeOf("function");
+    });
+
+    it("should include the $any function", () => {
+      expect(rt.Result.$any).toBeTypeOf("function");
+    });
+
+    it("should include the $anyPromised function", () => {
+      expect(rt.Result.$anyPromised).toBeTypeOf("function");
+    });
+
+    it("should include the $collect function", () => {
+      expect(rt.Result.$collect).toBeTypeOf("function");
+    });
+
+    it("should include the $collectPromised function", () => {
+      expect(rt.Result.$collectPromised).toBeTypeOf("function");
+    });
+
+    it("should include the $pipe function", () => {
+      expect(rt.Result.$pipe).toBeTypeOf("function");
+    });
+
+    it("should include the $pipeAsync function", () => {
+      expect(rt.Result.$pipeAsync).toBeTypeOf("function");
+    });
   });
 });

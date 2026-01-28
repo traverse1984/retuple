@@ -786,4 +786,313 @@ describe("Result", () => {
       ).resolves.toStrictEqual(Err("test"));
     });
   });
+
+  describe("$pipe", () => {
+    it("should throw if any provided function throws", () => {
+      const fnNoop = () => Ok();
+
+      expect(() => Result.$pipe(fnNoop, fnThrow)).toThrow(errThrow);
+      expect(() => Result.$pipe(fnNoop, fnNoop, fnThrow)).toThrow(errThrow);
+      expect(() => Result.$pipe(fnNoop, fnNoop, fnNoop, fnThrow)).toThrow(
+        errThrow,
+      );
+      expect(() =>
+        Result.$pipe(fnNoop, fnNoop, fnNoop, fnNoop, fnThrow),
+      ).toThrow(errThrow);
+      expect(() =>
+        Result.$pipe(fnNoop, fnNoop, fnNoop, fnNoop, fnNoop, fnThrow),
+      ).toThrow(errThrow);
+      expect(() =>
+        Result.$pipe(fnNoop, fnNoop, fnNoop, fnNoop, fnNoop, fnNoop, fnThrow),
+      ).toThrow(errThrow);
+      expect(() =>
+        Result.$pipe(
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnThrow,
+        ),
+      ).toThrow(errThrow);
+    });
+
+    it("should invoke each function in sequence and pass the previous ok value to the next function", () => {
+      const fnPipe = vi.fn((val?: number) => Ok(val ? val + 1 : 1));
+
+      Result.$pipe(
+        fnPipe,
+        fnPipe,
+        fnPipe,
+        fnPipe,
+        fnPipe,
+        fnPipe,
+        fnPipe,
+        fnPipe,
+      );
+
+      expect(fnPipe).toHaveBeenNthCalledWith(1);
+      expect(fnPipe).toHaveBeenNthCalledWith(2, 1);
+      expect(fnPipe).toHaveBeenNthCalledWith(3, 2);
+      expect(fnPipe).toHaveBeenNthCalledWith(4, 3);
+      expect(fnPipe).toHaveBeenNthCalledWith(5, 4);
+      expect(fnPipe).toHaveBeenNthCalledWith(6, 5);
+      expect(fnPipe).toHaveBeenNthCalledWith(7, 6);
+      expect(fnPipe).toHaveBeenNthCalledWith(8, 7);
+
+      expect(fnPipe).toHaveNthReturnedWith(1, Ok(1));
+      expect(fnPipe).toHaveNthReturnedWith(2, Ok(2));
+      expect(fnPipe).toHaveNthReturnedWith(3, Ok(3));
+      expect(fnPipe).toHaveNthReturnedWith(4, Ok(4));
+      expect(fnPipe).toHaveNthReturnedWith(5, Ok(5));
+      expect(fnPipe).toHaveNthReturnedWith(6, Ok(6));
+      expect(fnPipe).toHaveNthReturnedWith(7, Ok(7));
+      expect(fnPipe).toHaveNthReturnedWith(8, Ok(8));
+    });
+
+    it("should return the first returned Err encountered", () => {
+      const fnNoop = () => Ok();
+      const fnErr = () => Err("test");
+
+      expect(Result.$pipe(fnErr, fnNoop)).toStrictEqual(Err("test"));
+      expect(Result.$pipe(fnNoop, fnErr)).toStrictEqual(Err("test"));
+      expect(Result.$pipe(fnNoop, fnNoop, fnErr)).toStrictEqual(Err("test"));
+      expect(Result.$pipe(fnNoop, fnNoop, fnNoop, fnErr)).toStrictEqual(
+        Err("test"),
+      );
+      expect(Result.$pipe(fnNoop, fnNoop, fnNoop, fnNoop, fnErr)).toStrictEqual(
+        Err("test"),
+      );
+      expect(
+        Result.$pipe(fnNoop, fnNoop, fnNoop, fnNoop, fnNoop, fnErr),
+      ).toStrictEqual(Err("test"));
+      expect(
+        Result.$pipe(fnNoop, fnNoop, fnNoop, fnNoop, fnNoop, fnNoop, fnErr),
+      ).toStrictEqual(Err("test"));
+      expect(
+        Result.$pipe(
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnErr,
+        ),
+      ).toStrictEqual(Err("test"));
+    });
+
+    it("should handle custom objects with the ResultLikeSymbol", () => {
+      expect(
+        Result.$pipe(
+          () => Ok(),
+          () => ResultLikeOk,
+        ),
+      ).toStrictEqual(Ok("test"));
+
+      expect(
+        Result.$pipe(
+          () => Ok(),
+          () => ResultLikeErr,
+        ),
+      ).toStrictEqual(Err("test"));
+    });
+  });
+
+  describe("$pipeAsync", () => {
+    it("should reject if any provided function throws", async () => {
+      const fnNoop = () => Ok();
+
+      await expect(Result.$pipeAsync(fnNoop, fnThrow)).rejects.toBe(errThrow);
+      await expect(Result.$pipeAsync(fnNoop, fnNoop, fnThrow)).rejects.toBe(
+        errThrow,
+      );
+      await expect(
+        Result.$pipeAsync(fnNoop, fnNoop, fnNoop, fnThrow),
+      ).rejects.toBe(errThrow);
+      await expect(
+        Result.$pipeAsync(fnNoop, fnNoop, fnNoop, fnNoop, fnThrow),
+      ).rejects.toBe(errThrow);
+      await expect(
+        Result.$pipeAsync(fnNoop, fnNoop, fnNoop, fnNoop, fnNoop, fnThrow),
+      ).rejects.toBe(errThrow);
+      await expect(
+        Result.$pipeAsync(
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnThrow,
+        ),
+      ).rejects.toBe(errThrow);
+      await expect(
+        Result.$pipeAsync(
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnThrow,
+        ),
+      ).rejects.toBe(errThrow);
+    });
+
+    it("should reject if any provided function rejects", async () => {
+      const fnNoop = () => Ok();
+
+      await expect(Result.$pipeAsync(fnNoop, fnReject)).rejects.toBe(errReject);
+      await expect(Result.$pipeAsync(fnNoop, fnNoop, fnReject)).rejects.toBe(
+        errReject,
+      );
+      await expect(
+        Result.$pipeAsync(fnNoop, fnNoop, fnNoop, fnReject),
+      ).rejects.toBe(errReject);
+      await expect(
+        Result.$pipeAsync(fnNoop, fnNoop, fnNoop, fnNoop, fnReject),
+      ).rejects.toBe(errReject);
+      await expect(
+        Result.$pipeAsync(fnNoop, fnNoop, fnNoop, fnNoop, fnNoop, fnReject),
+      ).rejects.toBe(errReject);
+      await expect(
+        Result.$pipeAsync(
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnReject,
+        ),
+      ).rejects.toBe(errReject);
+      await expect(
+        Result.$pipeAsync(
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnReject,
+        ),
+      ).rejects.toBe(errReject);
+    });
+
+    it("should resolve each function in sequence and pass the previous ok value to the next function", async () => {
+      const fnPipe = vi.fn((val?: number) => Ok(val ? val + 1 : 1).$async());
+
+      await Result.$pipeAsync(
+        fnPipe,
+        fnPipe,
+        fnPipe,
+        fnPipe,
+        fnPipe,
+        fnPipe,
+        fnPipe,
+        fnPipe,
+      );
+
+      expect(fnPipe).toHaveBeenNthCalledWith(1);
+      expect(fnPipe).toHaveBeenNthCalledWith(2, 1);
+      expect(fnPipe).toHaveBeenNthCalledWith(3, 2);
+      expect(fnPipe).toHaveBeenNthCalledWith(4, 3);
+      expect(fnPipe).toHaveBeenNthCalledWith(5, 4);
+      expect(fnPipe).toHaveBeenNthCalledWith(6, 5);
+      expect(fnPipe).toHaveBeenNthCalledWith(7, 6);
+      expect(fnPipe).toHaveBeenNthCalledWith(8, 7);
+
+      expect(fnPipe).toHaveNthReturnedWith(1, Ok(1).$async());
+      expect(fnPipe).toHaveNthReturnedWith(2, Ok(2).$async());
+      expect(fnPipe).toHaveNthReturnedWith(3, Ok(3).$async());
+      expect(fnPipe).toHaveNthReturnedWith(4, Ok(4).$async());
+      expect(fnPipe).toHaveNthReturnedWith(5, Ok(5).$async());
+      expect(fnPipe).toHaveNthReturnedWith(6, Ok(6).$async());
+      expect(fnPipe).toHaveNthReturnedWith(7, Ok(7).$async());
+      expect(fnPipe).toHaveNthReturnedWith(8, Ok(8).$async());
+    });
+
+    it("should resolve with the first returned Err encountered", async () => {
+      const fnNoop = () => Ok().$async();
+      const fnErr = () => Err("test").$async();
+
+      await expect(Result.$pipeAsync(fnErr, fnNoop)).resolves.toStrictEqual(
+        Err("test"),
+      );
+      await expect(Result.$pipeAsync(fnNoop, fnErr)).resolves.toStrictEqual(
+        Err("test"),
+      );
+      await expect(
+        Result.$pipeAsync(fnNoop, fnNoop, fnErr),
+      ).resolves.toStrictEqual(Err("test"));
+      await expect(
+        Result.$pipeAsync(fnNoop, fnNoop, fnNoop, fnErr),
+      ).resolves.toStrictEqual(Err("test"));
+      await expect(
+        Result.$pipeAsync(fnNoop, fnNoop, fnNoop, fnNoop, fnErr),
+      ).resolves.toStrictEqual(Err("test"));
+      await expect(
+        Result.$pipeAsync(fnNoop, fnNoop, fnNoop, fnNoop, fnNoop, fnErr),
+      ).resolves.toStrictEqual(Err("test"));
+      await expect(
+        Result.$pipeAsync(
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnErr,
+        ),
+      ).resolves.toStrictEqual(Err("test"));
+      await expect(
+        Result.$pipeAsync(
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnErr,
+        ),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+
+    it("should handle custom objects with the ResultLikeSymbol", async () => {
+      await expect(
+        Result.$pipeAsync(
+          () => Ok().$async(),
+          () => ResultLikeOk,
+        ),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Result.$pipeAsync(
+          () => Ok().$async(),
+          () => ResultLikeErr,
+        ),
+      ).resolves.toStrictEqual(Err("test"));
+
+      await expect(
+        Result.$pipeAsync(
+          async () => Ok(),
+          async () => ResultLikeOk,
+        ),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Result.$pipeAsync(
+          async () => Ok(),
+          async () => ResultLikeErr,
+        ),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+  });
 });

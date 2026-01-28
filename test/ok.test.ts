@@ -242,39 +242,39 @@ describe("Ok", () => {
     });
   });
 
-  describe("$andAssert", () => {
+  describe("$assert", () => {
     it("should invoke the map error function with the contained value when the contained value is falsey", () => {
       const fnMapErr = vi.fn(() => Ok());
 
-      Ok("").$andCheck(fnMapErr);
+      Ok("").$assert(fnMapErr);
 
       expect(fnMapErr).toHaveBeenCalledExactlyOnceWith("");
     });
 
     it("should throw when the map error function throws", () => {
-      expect(capture(() => Ok().$andCheck(fnThrow))).toBe(errThrow);
+      expect(capture(() => Ok().$assert(fnThrow))).toBe(errThrow);
     });
 
     it("should return Ok with the contained value when the contained value is truthy", () => {
-      expect(Ok("test").$andAssert()).toStrictEqual(Ok("test"));
+      expect(Ok("test").$assert()).toStrictEqual(Ok("test"));
     });
 
     it("should return Err containing the return value of the map error function when the contained value is falsey", () => {
-      expect(Ok("").$andAssert(() => "error")).toStrictEqual(Err("error"));
+      expect(Ok("").$assert(() => "error")).toStrictEqual(Err("error"));
     });
 
     it("should return Err containing RetupleCheckFailedError contained value is falsey, and when no map error function is provided", () => {
-      expect(Ok("").$andAssert()).toStrictEqual(
+      expect(Ok("").$assert()).toStrictEqual(
         Err(new RetupleCheckFailedError("")),
       );
     });
   });
 
-  describe("$andCheck", () => {
+  describe("$check", () => {
     it("should invoke the check function with the contained value", () => {
       const fnCheck = vi.fn(() => true);
 
-      Ok("").$andCheck(fnCheck);
+      Ok("").$check(fnCheck);
 
       expect(fnCheck).toHaveBeenCalledExactlyOnceWith("");
     });
@@ -282,28 +282,26 @@ describe("Ok", () => {
     it("should invoke the map error function with the contained value when the check function returns a falsey value", () => {
       const fnMapErr = vi.fn(() => "error");
 
-      Ok("").$andCheck(() => false, fnMapErr);
+      Ok("").$check(() => false, fnMapErr);
 
       expect(fnMapErr).toHaveBeenCalledExactlyOnceWith("");
     });
 
     it("should throw when the check function throws", () => {
-      expect(capture(() => Ok().$andCheck(fnThrow))).toBe(errThrow);
+      expect(capture(() => Ok().$check(fnThrow))).toBe(errThrow);
     });
 
     it("should throw when the map error function throws", () => {
-      expect(capture(() => Ok().$andCheck(() => false, fnThrow))).toBe(
-        errThrow,
-      );
+      expect(capture(() => Ok().$check(() => false, fnThrow))).toBe(errThrow);
     });
 
     it("should return Ok with the contained value when the check function returns a truthy value", () => {
-      expect(Ok("test").$andCheck(() => true)).toStrictEqual(Ok("test"));
+      expect(Ok("test").$check(() => true)).toStrictEqual(Ok("test"));
     });
 
     it("should return Err containing the return value of the map error function when the check function returns a falsey value", () => {
       expect(
-        Ok("").$andCheck(
+        Ok("").$check(
           () => false,
           () => "error",
         ),
@@ -311,37 +309,67 @@ describe("Ok", () => {
     });
 
     it("should return Err containing RetupleCheckFailedError when the check function returns a falsey value, and when no map error function is provided", () => {
-      expect(Ok("").$andCheck(() => false)).toStrictEqual(
+      expect(Ok("").$check(() => false)).toStrictEqual(
         Err(new RetupleCheckFailedError("")),
       );
     });
   });
 
-  describe("$andFirst", () => {
+  describe("$atIndex", () => {
+    it("should invoke the map error function with the contained value when the array element is falsey", () => {
+      const fnMapErr = vi.fn(() => "error");
+
+      Ok(["test", ""]).$atIndex(1, fnMapErr);
+
+      expect(fnMapErr).toHaveBeenCalledExactlyOnceWith(["test", ""]);
+    });
+
+    it("should throw when the map error function throws", () => {
+      expect(capture(() => Ok([]).$atIndex(0, fnThrow))).toBe(errThrow);
+    });
+
+    it("should return Ok with the array element when it is truthy", () => {
+      expect(Ok(["", "test"]).$atIndex(1)).toStrictEqual(Ok("test"));
+    });
+
+    it("should return Err containing the return value of the map error function when the array element is falsey", () => {
+      expect(Ok(["test", ""]).$atIndex(1, () => "error")).toStrictEqual(
+        Err("error"),
+      );
+    });
+
+    it("should return Err containing RetupleCheckFailedError when the array element is falsey, and when no map error function is provided", () => {
+      expect(Ok(["", "test"]).$atIndex(0)).toStrictEqual(
+        Err(new RetupleCheckFailedError(["", "test"])),
+      );
+    });
+  });
+
+  describe("$firstIndex", () => {
     it("should invoke the map error function with the contained value when the first array element is falsey", () => {
       const fnMapErr = vi.fn(() => "error");
 
-      Ok([""]).$andFirst(fnMapErr);
+      Ok([""]).$firstIndex(fnMapErr);
 
       expect(fnMapErr).toHaveBeenCalledExactlyOnceWith([""]);
     });
 
     it("should throw when the map error function throws", () => {
-      expect(capture(() => Ok([]).$andFirst(fnThrow))).toBe(errThrow);
+      expect(capture(() => Ok([]).$firstIndex(fnThrow))).toBe(errThrow);
     });
 
     it("should return Ok with the first array element when it is truthy", () => {
-      expect(Ok(["test", ""]).$andFirst()).toStrictEqual(Ok("test"));
+      expect(Ok(["test", ""]).$firstIndex()).toStrictEqual(Ok("test"));
     });
 
     it("should return Err containing the return value of the map error function when the first array element is falsey", () => {
-      expect(Ok(["", "test"]).$andFirst(() => "error")).toStrictEqual(
+      expect(Ok(["", "test"]).$firstIndex(() => "error")).toStrictEqual(
         Err("error"),
       );
     });
 
     it("should return Err containing RetupleCheckFailedError when the first array element is falsey, and when no map error function is provided", () => {
-      expect(Ok(["", "test"]).$andFirst()).toStrictEqual(
+      expect(Ok(["", "test"]).$firstIndex()).toStrictEqual(
         Err(new RetupleCheckFailedError(["", "test"])),
       );
     });
@@ -539,6 +567,333 @@ describe("Ok", () => {
 
     it("should map the error with the map error function when provided", () => {
       expect(Ok().$andSafe(fnThrow, () => "test")).toStrictEqual(Err("test"));
+    });
+  });
+
+  describe("$andPipe", () => {
+    it("should throw if any provided function throws", () => {
+      const fnNoop = () => Ok();
+
+      expect(() => Ok().$andPipe(fnNoop, fnThrow)).toThrow(errThrow);
+      expect(() => Ok().$andPipe(fnNoop, fnNoop, fnThrow)).toThrow(errThrow);
+      expect(() => Ok().$andPipe(fnNoop, fnNoop, fnNoop, fnThrow)).toThrow(
+        errThrow,
+      );
+      expect(() =>
+        Ok().$andPipe(fnNoop, fnNoop, fnNoop, fnNoop, fnThrow),
+      ).toThrow(errThrow);
+      expect(() =>
+        Ok().$andPipe(fnNoop, fnNoop, fnNoop, fnNoop, fnNoop, fnThrow),
+      ).toThrow(errThrow);
+      expect(() =>
+        Ok().$andPipe(fnNoop, fnNoop, fnNoop, fnNoop, fnNoop, fnNoop, fnThrow),
+      ).toThrow(errThrow);
+      expect(() =>
+        Ok().$andPipe(
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnThrow,
+        ),
+      ).toThrow(errThrow);
+    });
+
+    it("should invoke the first function with the contained value", () => {
+      const fnPipe = vi.fn(() => Ok());
+
+      Ok("test").$andPipe(fnPipe, () => Ok());
+
+      expect(fnPipe).toHaveBeenCalledExactlyOnceWith("test");
+    });
+
+    it("should invoke each function in sequence and pass the previous ok value to the next function", () => {
+      const fnPipe = vi.fn((val: number) => Ok(val + 1));
+
+      Ok(1).$andPipe(
+        fnPipe,
+        fnPipe,
+        fnPipe,
+        fnPipe,
+        fnPipe,
+        fnPipe,
+        fnPipe,
+        fnPipe,
+      );
+
+      expect(fnPipe).toHaveBeenNthCalledWith(1, 1);
+      expect(fnPipe).toHaveBeenNthCalledWith(2, 2);
+      expect(fnPipe).toHaveBeenNthCalledWith(3, 3);
+      expect(fnPipe).toHaveBeenNthCalledWith(4, 4);
+      expect(fnPipe).toHaveBeenNthCalledWith(5, 5);
+      expect(fnPipe).toHaveBeenNthCalledWith(6, 6);
+      expect(fnPipe).toHaveBeenNthCalledWith(7, 7);
+      expect(fnPipe).toHaveBeenNthCalledWith(8, 8);
+
+      expect(fnPipe).toHaveNthReturnedWith(1, Ok(2));
+      expect(fnPipe).toHaveNthReturnedWith(2, Ok(3));
+      expect(fnPipe).toHaveNthReturnedWith(3, Ok(4));
+      expect(fnPipe).toHaveNthReturnedWith(4, Ok(5));
+      expect(fnPipe).toHaveNthReturnedWith(5, Ok(6));
+      expect(fnPipe).toHaveNthReturnedWith(6, Ok(7));
+      expect(fnPipe).toHaveNthReturnedWith(7, Ok(8));
+      expect(fnPipe).toHaveNthReturnedWith(8, Ok(9));
+    });
+
+    it("should return the first returned Err encountered", () => {
+      const fnNoop = () => Ok();
+      const fnErr = () => Err("test");
+
+      expect(Ok().$andPipe(fnErr, fnNoop)).toStrictEqual(Err("test"));
+      expect(Ok().$andPipe(fnNoop, fnErr)).toStrictEqual(Err("test"));
+      expect(Ok().$andPipe(fnNoop, fnNoop, fnErr)).toStrictEqual(Err("test"));
+      expect(Ok().$andPipe(fnNoop, fnNoop, fnNoop, fnErr)).toStrictEqual(
+        Err("test"),
+      );
+      expect(
+        Ok().$andPipe(fnNoop, fnNoop, fnNoop, fnNoop, fnErr),
+      ).toStrictEqual(Err("test"));
+      expect(
+        Ok().$andPipe(fnNoop, fnNoop, fnNoop, fnNoop, fnNoop, fnErr),
+      ).toStrictEqual(Err("test"));
+      expect(
+        Ok().$andPipe(fnNoop, fnNoop, fnNoop, fnNoop, fnNoop, fnNoop, fnErr),
+      ).toStrictEqual(Err("test"));
+      expect(
+        Ok().$andPipe(
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnErr,
+        ),
+      ).toStrictEqual(Err("test"));
+    });
+
+    it("should handle custom objects with the ResultLikeSymbol", () => {
+      expect(
+        Ok().$andPipe(
+          () => Ok(),
+          () => ResultLikeOk,
+        ),
+      ).toStrictEqual(Ok("test"));
+
+      expect(
+        Ok().$andPipe(
+          () => Ok(),
+          () => ResultLikeErr,
+        ),
+      ).toStrictEqual(Err("test"));
+    });
+  });
+
+  describe("$andPipeAsync", () => {
+    it("should reject if any provided function throws", async () => {
+      const fnNoop = () => Ok();
+
+      await expect(Ok().$andPipeAsync(fnNoop, fnThrow)).rejects.toBe(errThrow);
+      await expect(Ok().$andPipeAsync(fnNoop, fnNoop, fnThrow)).rejects.toBe(
+        errThrow,
+      );
+      await expect(
+        Ok().$andPipeAsync(fnNoop, fnNoop, fnNoop, fnThrow),
+      ).rejects.toBe(errThrow);
+      await expect(
+        Ok().$andPipeAsync(fnNoop, fnNoop, fnNoop, fnNoop, fnThrow),
+      ).rejects.toBe(errThrow);
+      await expect(
+        Ok().$andPipeAsync(fnNoop, fnNoop, fnNoop, fnNoop, fnNoop, fnThrow),
+      ).rejects.toBe(errThrow);
+      await expect(
+        Ok().$andPipeAsync(
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnThrow,
+        ),
+      ).rejects.toBe(errThrow);
+      await expect(
+        Ok().$andPipeAsync(
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnThrow,
+        ),
+      ).rejects.toBe(errThrow);
+    });
+
+    it("should reject if any provided function rejects", async () => {
+      const fnNoop = () => Ok();
+
+      await expect(Ok().$andPipeAsync(fnNoop, fnReject)).rejects.toBe(
+        errReject,
+      );
+      await expect(Ok().$andPipeAsync(fnNoop, fnNoop, fnReject)).rejects.toBe(
+        errReject,
+      );
+      await expect(
+        Ok().$andPipeAsync(fnNoop, fnNoop, fnNoop, fnReject),
+      ).rejects.toBe(errReject);
+      await expect(
+        Ok().$andPipeAsync(fnNoop, fnNoop, fnNoop, fnNoop, fnReject),
+      ).rejects.toBe(errReject);
+      await expect(
+        Ok().$andPipeAsync(fnNoop, fnNoop, fnNoop, fnNoop, fnNoop, fnReject),
+      ).rejects.toBe(errReject);
+      await expect(
+        Ok().$andPipeAsync(
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnReject,
+        ),
+      ).rejects.toBe(errReject);
+      await expect(
+        Ok().$andPipeAsync(
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnReject,
+        ),
+      ).rejects.toBe(errReject);
+    });
+
+    it("should invoke the first function with the contained value", async () => {
+      const fnPipe = vi.fn(() => Ok());
+
+      await Ok("test").$andPipeAsync(fnPipe, () => Ok());
+
+      expect(fnPipe).toHaveBeenCalledExactlyOnceWith("test");
+    });
+
+    it("should resolve each function in sequence and pass the previous ok value to the next function", async () => {
+      const fnPipe = vi.fn((val: number) => Ok(val + 1).$async());
+
+      await Ok(1).$andPipeAsync(
+        fnPipe,
+        fnPipe,
+        fnPipe,
+        fnPipe,
+        fnPipe,
+        fnPipe,
+        fnPipe,
+        fnPipe,
+      );
+
+      expect(fnPipe).toHaveBeenNthCalledWith(1, 1);
+      expect(fnPipe).toHaveBeenNthCalledWith(2, 2);
+      expect(fnPipe).toHaveBeenNthCalledWith(3, 3);
+      expect(fnPipe).toHaveBeenNthCalledWith(4, 4);
+      expect(fnPipe).toHaveBeenNthCalledWith(5, 5);
+      expect(fnPipe).toHaveBeenNthCalledWith(6, 6);
+      expect(fnPipe).toHaveBeenNthCalledWith(7, 7);
+      expect(fnPipe).toHaveBeenNthCalledWith(8, 8);
+
+      expect(fnPipe).toHaveNthReturnedWith(1, Ok(2).$async());
+      expect(fnPipe).toHaveNthReturnedWith(2, Ok(3).$async());
+      expect(fnPipe).toHaveNthReturnedWith(3, Ok(4).$async());
+      expect(fnPipe).toHaveNthReturnedWith(4, Ok(5).$async());
+      expect(fnPipe).toHaveNthReturnedWith(5, Ok(6).$async());
+      expect(fnPipe).toHaveNthReturnedWith(6, Ok(7).$async());
+      expect(fnPipe).toHaveNthReturnedWith(7, Ok(8).$async());
+      expect(fnPipe).toHaveNthReturnedWith(8, Ok(9).$async());
+    });
+
+    it("should resolve with the first returned Err encountered", async () => {
+      const fnNoop = () => Ok().$async();
+      const fnErr = () => Err("test").$async();
+
+      await expect(Ok().$andPipeAsync(fnErr, fnNoop)).resolves.toStrictEqual(
+        Err("test"),
+      );
+      await expect(Ok().$andPipeAsync(fnNoop, fnErr)).resolves.toStrictEqual(
+        Err("test"),
+      );
+      await expect(
+        Ok().$andPipeAsync(fnNoop, fnNoop, fnErr),
+      ).resolves.toStrictEqual(Err("test"));
+      await expect(
+        Ok().$andPipeAsync(fnNoop, fnNoop, fnNoop, fnErr),
+      ).resolves.toStrictEqual(Err("test"));
+      await expect(
+        Ok().$andPipeAsync(fnNoop, fnNoop, fnNoop, fnNoop, fnErr),
+      ).resolves.toStrictEqual(Err("test"));
+      await expect(
+        Ok().$andPipeAsync(fnNoop, fnNoop, fnNoop, fnNoop, fnNoop, fnErr),
+      ).resolves.toStrictEqual(Err("test"));
+      await expect(
+        Ok().$andPipeAsync(
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnErr,
+        ),
+      ).resolves.toStrictEqual(Err("test"));
+      await expect(
+        Ok().$andPipeAsync(
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnNoop,
+          fnErr,
+        ),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+
+    it("should handle custom objects with the ResultLikeSymbol", async () => {
+      await expect(
+        Ok().$andPipeAsync(
+          () => Ok().$async(),
+          () => ResultLikeOk,
+        ),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Ok().$andPipeAsync(
+          () => Ok().$async(),
+          () => ResultLikeErr,
+        ),
+      ).resolves.toStrictEqual(Err("test"));
+
+      await expect(
+        Ok().$andPipeAsync(
+          async () => Ok(),
+          async () => ResultLikeOk,
+        ),
+      ).resolves.toStrictEqual(Ok("test"));
+
+      await expect(
+        Ok().$andPipeAsync(
+          async () => Ok(),
+          async () => ResultLikeErr,
+        ),
+      ).resolves.toStrictEqual(Err("test"));
     });
   });
 

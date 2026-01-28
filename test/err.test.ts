@@ -265,25 +265,25 @@ describe("Err", () => {
     });
   });
 
-  describe("$andAssert", () => {
+  describe("$assert", () => {
     it("should not invoke the map error function", () => {
       const fnMapErr = vi.fn(() => true);
 
-      Err().$andAssert(fnMapErr);
+      Err().$assert(fnMapErr);
 
       expect(fnMapErr).not.toHaveBeenCalled();
     });
 
     it("should return Err with the contained value", () => {
-      expect(Err("test").$andAssert()).toStrictEqual(Err("test"));
+      expect(Err("test").$assert()).toStrictEqual(Err("test"));
     });
   });
 
-  describe("$andCheck", () => {
+  describe("$check", () => {
     it("should not invoke the check function", () => {
       const fnCheck = vi.fn(() => Ok());
 
-      Err().$andCheck(fnCheck);
+      Err().$check(fnCheck);
 
       expect(fnCheck).not.toHaveBeenCalled();
     });
@@ -291,27 +291,41 @@ describe("Err", () => {
     it("should not invoke the map error function", () => {
       const fnMapErr = vi.fn(() => true);
 
-      Err().$andCheck(() => false, fnMapErr);
+      Err().$check(() => false, fnMapErr);
 
       expect(fnMapErr).not.toHaveBeenCalled();
     });
 
     it("should return Err with the contained value", () => {
-      expect(Err("test").$andCheck(() => true)).toStrictEqual(Err("test"));
+      expect(Err("test").$check(() => true)).toStrictEqual(Err("test"));
     });
   });
 
-  describe("$andFirst", () => {
+  describe("$atIndex", () => {
     it("should not invoke the map error function", () => {
       const fnMapErr = vi.fn(() => true);
 
-      Err().$andFirst(fnMapErr);
+      Err().$atIndex(1, fnMapErr);
 
       expect(fnMapErr).not.toHaveBeenCalled();
     });
 
     it("should return Err with the contained value", () => {
-      expect(Err("test").$andFirst()).toStrictEqual(Err("test"));
+      expect(Err("test").$atIndex(0)).toStrictEqual(Err("test"));
+    });
+  });
+
+  describe("$firstIndex", () => {
+    it("should not invoke the map error function", () => {
+      const fnMapErr = vi.fn(() => true);
+
+      Err().$firstIndex(fnMapErr);
+
+      expect(fnMapErr).not.toHaveBeenCalled();
+    });
+
+    it("should return Err with the contained value", () => {
+      expect(Err("test").$firstIndex()).toStrictEqual(Err("test"));
     });
   });
 
@@ -862,6 +876,58 @@ describe("Err", () => {
     it("should resolve to Err with the contained value", async () => {
       await expect(
         Err("test").$andSafePromise(Promise.resolve()),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+  });
+
+  describe("$andPipe", () => {
+    it("should not invoke the pipeline", () => {
+      const fnNoop = vi.fn(() => Ok());
+
+      Err().$andPipe(
+        fnNoop,
+        fnNoop,
+        fnNoop,
+        fnNoop,
+        fnNoop,
+        fnNoop,
+        fnNoop,
+        fnNoop,
+      );
+
+      expect(fnNoop).not.toHaveBeenCalled();
+    });
+
+    it("should return the original error", () => {
+      const fnNoop = () => Ok();
+
+      expect(Err("test").$andPipe(fnNoop, fnNoop)).toStrictEqual(Err("test"));
+    });
+  });
+
+  describe("$andPipeAsync", () => {
+    it("should not invoke the pipeline", async () => {
+      const fnNoop = vi.fn(async () => Ok());
+
+      await Err().$andPipeAsync(
+        fnNoop,
+        fnNoop,
+        fnNoop,
+        fnNoop,
+        fnNoop,
+        fnNoop,
+        fnNoop,
+        fnNoop,
+      );
+
+      expect(fnNoop).not.toHaveBeenCalled();
+    });
+
+    it("should resolve to the original error", async () => {
+      const fnNoop = () => Ok().$async();
+
+      await expect(
+        Err("test").$andPipeAsync(fnNoop, fnNoop),
       ).resolves.toStrictEqual(Err("test"));
     });
   });

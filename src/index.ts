@@ -126,6 +126,8 @@ Result.$any = $any;
 Result.$anyPromised = $anyPromised;
 Result.$collect = $collect;
 Result.$collectPromised = $collectPromised;
+Result.$pipe = $pipe;
+Result.$pipeAsync = $pipeAsync;
 
 Object.freeze(Result);
 
@@ -984,6 +986,219 @@ function $collectPromised<
 }
 
 /**
+ * Construct a `Result` by executing a series of functions which each return
+ * results. Each function in the chain receives the `Ok` value from the
+ * previous result. Returns `Ok` containing the final value in the chain.
+ *
+ * If `Err` is encountered anywhere in the chain, no further functions are
+ * called and the `Err` is returned.
+ *
+ * @example
+ *
+ * ```ts
+ * function divide(x: number, by: number): Result<number, string> {
+ *   if (by === 0) {
+ *     return Err("Can't divide by zero");
+ *   }
+ *
+ *   return x / by;
+ * }
+ *
+ * const five: Result<number, string> = Result.$pipe(
+ *   () => divide(100, 2), // 100 / 2
+ *   (y) => divide(y, 5),  // 50 / 5
+ *   (z) => divide(z, 2),  // 10 / 2
+ * );
+ *
+ * assert.equal(five.$unwrap(), 5);
+ * ```
+ *
+ * @example
+ *
+ * ```ts
+ * const error: Result<number, string> = Result.$pipe(
+ *   () => divide(100, 2), // 100 / 2,
+ *   (y) => divide(y, 0),  // 50 / 0 (error)
+ *   (z) => divide(z, 2),  // never executed
+ * );
+ *
+ * assert.equal(error.$unwrapErr(), "Can't divide by zero");
+ * ```
+ */
+function $pipe<T0, E0, T1, E1>(
+  f0: () => ResultLike<T0, E0>,
+  f1: (val0: T0) => ResultLike<T1, E1>,
+): Result<T1, E0 | E1>;
+function $pipe<T0, E0, T1, E1, T2, E2>(
+  f0: () => ResultLike<T0, E0>,
+  f1: (val0: T0) => ResultLike<T1, E1>,
+  f2: (val1: T1) => ResultLike<T2, E2>,
+): Result<T2, E0 | E1 | E2>;
+function $pipe<T0, E0, T1, E1, T2, E2, T3, E3>(
+  f0: () => ResultLike<T0, E0>,
+  f1: (val0: T0) => ResultLike<T1, E1>,
+  f2: (val1: T1) => ResultLike<T2, E2>,
+  f3: (val2: T2) => ResultLike<T3, E3>,
+): Result<T3, E0 | E1 | E2 | E3>;
+function $pipe<T0, E0, T1, E1, T2, E2, T3, E3, T4, E4>(
+  f0: () => ResultLike<T0, E0>,
+  f1: (val0: T0) => ResultLike<T1, E1>,
+  f2: (val1: T1) => ResultLike<T2, E2>,
+  f3: (val2: T2) => ResultLike<T3, E3>,
+  f4: (val3: T3) => ResultLike<T4, E4>,
+): Result<T4, E0 | E1 | E2 | E3 | E4>;
+function $pipe<T0, E0, T1, E1, T2, E2, T3, E3, T4, E4, T5, E5>(
+  f0: () => ResultLike<T0, E0>,
+  f1: (val0: T0) => ResultLike<T1, E1>,
+  f2: (val1: T1) => ResultLike<T2, E2>,
+  f3: (val2: T2) => ResultLike<T3, E3>,
+  f4: (val3: T3) => ResultLike<T4, E4>,
+  f5: (val4: T4) => ResultLike<T5, E5>,
+): Result<T5, E0 | E1 | E2 | E3 | E4 | E5>;
+function $pipe<T0, E0, T1, E1, T2, E2, T3, E3, T4, E4, T5, E5, T6, E6>(
+  f0: () => ResultLike<T0, E0>,
+  f1: (val0: T0) => ResultLike<T1, E1>,
+  f2: (val1: T1) => ResultLike<T2, E2>,
+  f3: (val2: T2) => ResultLike<T3, E3>,
+  f4: (val3: T3) => ResultLike<T4, E4>,
+  f5: (val4: T4) => ResultLike<T5, E5>,
+  f6: (val5: T5) => ResultLike<T6, E6>,
+): Result<T6, E0 | E1 | E2 | E3 | E4 | E5 | E6>;
+function $pipe<T0, E0, T1, E1, T2, E2, T3, E3, T4, E4, T5, E5, T6, E6, T7, E7>(
+  f0: () => ResultLike<T0, E0>,
+  f1: (val0: T0) => ResultLike<T1, E1>,
+  f2: (val1: T1) => ResultLike<T2, E2>,
+  f3: (val2: T2) => ResultLike<T3, E3>,
+  f4: (val3: T3) => ResultLike<T4, E4>,
+  f5: (val4: T4) => ResultLike<T5, E5>,
+  f6: (val5: T5) => ResultLike<T6, E6>,
+  f7: (val6: T6) => ResultLike<T7, E7>,
+): Result<T7, E0 | E1 | E2 | E3 | E4 | E5 | E6 | E7>;
+function $pipe(
+  f0: () => ResultLike<any, any>,
+  ...fnx: ((val: any) => ResultLike<any, any>)[]
+): Result<any, any> {
+  const first = asResult(f0());
+
+  if (first instanceof ResultErr) {
+    return first;
+  }
+
+  let current: any = first[1];
+
+  for (const fn of fnx) {
+    const result = asResult(fn(current));
+
+    if (result instanceof ResultErr) {
+      return result;
+    }
+
+    current = result[1];
+  }
+
+  return Ok(current);
+}
+
+/**
+ * The same as {@link Result.$pipe|$pipe} except it accepts async functions
+ * and returns {@link ResultAsync}.
+ */
+function $pipeAsync<T0, E0, T1, E1>(
+  f0: () => ResultLikeAwaitable<T0, E0>,
+  f1: (val0: T0) => ResultLikeAwaitable<T1, E1>,
+): ResultAsync<T1, E0 | E1>;
+function $pipeAsync<T0, E0, T1, E1, T2, E2>(
+  f0: () => ResultLikeAwaitable<T0, E0>,
+  f1: (val0: T0) => ResultLikeAwaitable<T1, E1>,
+  f2: (val1: T1) => ResultLikeAwaitable<T2, E2>,
+): ResultAsync<T2, E0 | E1 | E2>;
+function $pipeAsync<T0, E0, T1, E1, T2, E2, T3, E3>(
+  f0: () => ResultLikeAwaitable<T0, E0>,
+  f1: (val0: T0) => ResultLikeAwaitable<T1, E1>,
+  f2: (val1: T1) => ResultLikeAwaitable<T2, E2>,
+  f3: (val2: T2) => ResultLikeAwaitable<T3, E3>,
+): ResultAsync<T3, E0 | E1 | E2 | E3>;
+function $pipeAsync<T0, E0, T1, E1, T2, E2, T3, E3, T4, E4>(
+  f0: () => ResultLikeAwaitable<T0, E0>,
+  f1: (val0: T0) => ResultLikeAwaitable<T1, E1>,
+  f2: (val1: T1) => ResultLikeAwaitable<T2, E2>,
+  f3: (val2: T2) => ResultLikeAwaitable<T3, E3>,
+  f4: (val3: T3) => ResultLikeAwaitable<T4, E4>,
+): ResultAsync<T4, E0 | E1 | E2 | E3 | E4>;
+function $pipeAsync<T0, E0, T1, E1, T2, E2, T3, E3, T4, E4, T5, E5>(
+  f0: () => ResultLikeAwaitable<T0, E0>,
+  f1: (val0: T0) => ResultLikeAwaitable<T1, E1>,
+  f2: (val1: T1) => ResultLikeAwaitable<T2, E2>,
+  f3: (val2: T2) => ResultLikeAwaitable<T3, E3>,
+  f4: (val3: T3) => ResultLikeAwaitable<T4, E4>,
+  f5: (val4: T4) => ResultLikeAwaitable<T5, E5>,
+): ResultAsync<T5, E0 | E1 | E2 | E3 | E4 | E5>;
+function $pipeAsync<T0, E0, T1, E1, T2, E2, T3, E3, T4, E4, T5, E5, T6, E6>(
+  f0: () => ResultLikeAwaitable<T0, E0>,
+  f1: (val0: T0) => ResultLikeAwaitable<T1, E1>,
+  f2: (val1: T1) => ResultLikeAwaitable<T2, E2>,
+  f3: (val2: T2) => ResultLikeAwaitable<T3, E3>,
+  f4: (val3: T3) => ResultLikeAwaitable<T4, E4>,
+  f5: (val4: T4) => ResultLikeAwaitable<T5, E5>,
+  f6: (val5: T5) => ResultLikeAwaitable<T6, E6>,
+): ResultAsync<T6, E0 | E1 | E2 | E3 | E4 | E5 | E6>;
+function $pipeAsync<
+  T0,
+  E0,
+  T1,
+  E1,
+  T2,
+  E2,
+  T3,
+  E3,
+  T4,
+  E4,
+  T5,
+  E5,
+  T6,
+  E6,
+  T7,
+  E7,
+>(
+  f0: () => ResultLikeAwaitable<T0, E0>,
+  f1: (val0: T0) => ResultLikeAwaitable<T1, E1>,
+  f2: (val1: T1) => ResultLikeAwaitable<T2, E2>,
+  f3: (val2: T2) => ResultLikeAwaitable<T3, E3>,
+  f4: (val3: T3) => ResultLikeAwaitable<T4, E4>,
+  f5: (val4: T4) => ResultLikeAwaitable<T5, E5>,
+  f6: (val5: T5) => ResultLikeAwaitable<T6, E6>,
+  f7: (val6: T6) => ResultLikeAwaitable<T7, E7>,
+): ResultAsync<T7, E0 | E1 | E2 | E3 | E4 | E5 | E6 | E7>;
+function $pipeAsync(
+  f0: () => ResultLikeAwaitable<any, any>,
+  ...fnx: ((val: any) => ResultLikeAwaitable<any, any>)[]
+): ResultAsync<any, any> {
+  return new ResultAsync(
+    (async () => {
+      const first = asResult(await f0());
+
+      if (first instanceof ResultErr) {
+        return first;
+      }
+
+      let current: any = first[1];
+
+      for (const fn of fnx) {
+        const result = asResult(await fn(current));
+
+        if (result instanceof ResultErr) {
+          return result;
+        }
+
+        current = result[1];
+      }
+
+      return Ok(current);
+    })(),
+  );
+}
+
+/**
  * ## ResultOk
  *
  * This is the `Ok` variant of a `Result`, used internally and not exported.
@@ -1067,14 +1282,14 @@ class ResultOk<T, E> extends Array<T | undefined> implements Retuple<T, E> {
     return Ok(f(this[1]));
   }
 
-  $andAssert<F>(
+  $assert<F>(
     this: ThisOk<T>,
     mapError: (val: T) => F = mapCheckError as () => F,
   ): Result<Truthy<T>, E | F> {
     return this[1] ? (this as ThisOk<Truthy<T>>) : Err(mapError(this[1]));
   }
 
-  $andCheck<U extends T, F>(
+  $check<U extends T, F>(
     this: ThisOk<T>,
     check: (val: T) => val is U,
     mapError: (val: T) => F = mapCheckError as () => F,
@@ -1082,26 +1297,20 @@ class ResultOk<T, E> extends Array<T | undefined> implements Retuple<T, E> {
     return check(this[1]) ? (this as ThisOk<U>) : Err(mapError(this[1]));
   }
 
-  $andFirst(
-    this: Result<readonly [], E>,
-  ): Result<never, E | RetupleCheckFailedError<[]>>;
-  $andFirst<U>(
-    this: Result<readonly [U?, ...any[]], E>,
-  ): Result<Truthy<U>, E | RetupleCheckFailedError<T>>;
-  $andFirst<F = E>(
-    this: Result<readonly [], E>,
-    mapError: (val: readonly []) => F,
-  ): Result<never, E | F>;
-  $andFirst<U, F = E>(
-    this: Result<readonly [U?, ...any[]], E>,
-    mapError: (val: T) => F,
-  ): Result<Truthy<U>, E | F>;
-  $andFirst<U, F = E>(
-    this: Result<readonly [U?, ...any[]], E> | Result<readonly [], E>,
-    mapError:
-      | ((val: T) => F)
-      | ((val: readonly []) => F) = mapCheckError as () => F,
-  ) {
+  $atIndex<U, F = E>(
+    this: ThisOk<readonly U[]>,
+    index: number,
+    mapError: (val: T) => F = mapCheckError as (val: T) => F,
+  ): Result<Truthy<U>, F | RetupleCheckFailedError<T>> {
+    const element = this[1]![index];
+
+    return element ? Ok(element as Truthy<U>) : Err(mapError(this[1] as any));
+  }
+
+  $firstIndex<U, F = E>(
+    this: ThisOk<readonly U[]>,
+    mapError: (val: T) => F = mapCheckError as (val: T) => F,
+  ): Result<Truthy<U>, F | RetupleCheckFailedError<T>> {
     const first = this[1]![0];
 
     return first ? Ok(first as Truthy<U>) : Err(mapError(this[1] as any));
@@ -1202,6 +1411,25 @@ class ResultOk<T, E> extends Array<T | undefined> implements Retuple<T, E> {
     mapError: (err: unknown) => F = ensureError,
   ): ResultAsync<U, F> {
     return this.$async().$andSafePromise(promise, mapError);
+  }
+
+  $andPipe(
+    this: ThisOk<T>,
+    f0: (val: T) => Result<any, any>,
+    ...fx: ((val: any) => Result<any, any>)[]
+  ): Result<any, any> {
+    return Result.$pipe(() => f0(this[1]), ...(fx as [() => Result<any, any>]));
+  }
+
+  $andPipeAsync(
+    this: ThisOk<T>,
+    f0: (val: T) => ResultLikeAwaitable<any, any>,
+    ...fx: ((val: any) => ResultLikeAwaitable<any, any>)[]
+  ): ResultAsync<any, any> {
+    return Result.$pipeAsync(
+      () => f0(this[1]),
+      ...(fx as [() => Result<any, any>]),
+    );
   }
 
   $peek(this: ThisOk<T>, f: (res: Result<T, E>) => void): ThisOk<T> {
@@ -1323,15 +1551,19 @@ class ResultErr<T, E> extends Array<E | undefined> implements Retuple<T, E> {
     return Ok(def(this[0]));
   }
 
-  $andAssert(this: ThisErr<E>): ThisErr<E> {
+  $assert(this: ThisErr<E>): ThisErr<E> {
     return this;
   }
 
-  $andCheck(this: ThisErr<E>): ThisErr<E> {
+  $check(this: ThisErr<E>): ThisErr<E> {
     return this;
   }
 
-  $andFirst(this: ThisErr<E>): ThisErr<E> {
+  $atIndex(this: ThisErr<E>): ThisErr<E> {
+    return this;
+  }
+
+  $firstIndex(this: ThisErr<E>): ThisErr<E> {
     return this;
   }
 
@@ -1421,6 +1653,14 @@ class ResultErr<T, E> extends Array<E | undefined> implements Retuple<T, E> {
   }
 
   $andSafePromise(this: ThisErr<E>): ResultAsync<never, E> {
+    return this.$async();
+  }
+
+  $andPipe(this: ThisErr<E>): ThisErr<E> {
+    return this;
+  }
+
+  $andPipeAsync(this: ThisErr<E>): ResultAsync<never, E> {
     return this.$async();
   }
 
@@ -1592,19 +1832,17 @@ class ResultAsync<T, E> {
   }
 
   /**
-   * The same as {@link Retuple.$andCheck|$andAssert}, except it:
-   *
-   * - can also accept a `PromiseLike` default value;
-   * - returns {@link ResultAsync}.
+   * The same as {@link Retuple.$check|$andAssert}, except it returns
+   * {@link ResultAsync}.
    */
-  $andAssert(
+  $assert(
     this: ResultAsync<T, E>,
   ): ResultAsync<Truthy<T>, E | RetupleCheckFailedError<T>>;
-  $andAssert<F = E>(
+  $assert<F = E>(
     this: ResultAsync<T, E>,
     mapError: (val: T) => F,
   ): ResultAsync<Truthy<T>, E | F>;
-  $andAssert<F = E>(
+  $assert<F = E>(
     this: ResultAsync<T, E>,
     mapError: (val: T) => F = mapCheckError as () => F,
   ): ResultAsync<Truthy<T>, E | F | RetupleCheckFailedError<T>> {
@@ -1622,30 +1860,28 @@ class ResultAsync<T, E> {
   }
 
   /**
-   * The same as {@link Retuple.$andCheck|$andCheck}, except it:
-   *
-   * - can also accept an `async` default function;
-   * - returns {@link ResultAsync}.
+   * The same as {@link Retuple.$check|$andCheck}, except it returns
+   * {@link ResultAsync}.
    */
-  $andCheck<U extends T = T>(
+  $check<U extends T = T>(
     this: ResultAsync<T, E>,
     predicate: (val: T) => val is U,
   ): ResultAsync<U, E | RetupleCheckFailedError<T>>;
-  $andCheck(
+  $check(
     this: ResultAsync<T, E>,
     check: (val: T) => unknown,
   ): ResultAsync<T, E | RetupleCheckFailedError<T>>;
-  $andCheck<U extends T = T, F = E>(
+  $check<U extends T = T, F = E>(
     this: ResultAsync<T, E>,
     predicate: (val: T) => val is U,
     mapError: (val: T) => F,
   ): ResultAsync<U, E | F>;
-  $andCheck<F = E>(
+  $check<F = E>(
     this: ResultAsync<T, E>,
     check: (val: T) => unknown,
     mapError: (val: T) => F,
   ): ResultAsync<T, E | F>;
-  $andCheck<U extends T, F = E>(
+  $check<U extends T, F = E>(
     this: ResultAsync<T, E>,
     check: ((val: T) => unknown) | ((val: T) => val is U),
     mapError: (val: T) => F = mapCheckError as () => F,
@@ -1662,27 +1898,49 @@ class ResultAsync<T, E> {
   }
 
   /**
-   * The same as {@link Retuple.$andCheck|$andCheck}, except it:
-   *
-   * - can also accept an `async` default function;
-   * - returns {@link ResultAsync}.
+   * The same as {@link Retuple.$atIndex|$atIndex}, except it returns
+   * {@link ResultAsync}.
    */
-  $andFirst<U>(
-    this: ResultAsync<readonly [U?, ...any[]], E>,
+  $atIndex<U>(
+    this: ResultAsync<readonly U[], E>,
+    index: number,
   ): ResultAsync<U, E | RetupleCheckFailedError<T>>;
-  $andFirst(
-    this: ResultAsync<readonly [], E>,
-  ): ResultAsync<never, E | RetupleCheckFailedError<T>>;
-  $andFirst<U, F = E>(
-    this: ResultAsync<readonly [U?, ...any[]], E>,
+  $atIndex<U, F = E>(
+    this: ResultAsync<readonly U[], E>,
+    index: number,
     mapError: (val: T) => F,
   ): ResultAsync<U, E | F>;
-  $andFirst<F = E>(
-    this: ResultAsync<readonly [], E>,
+  $atIndex<U, F = E>(
+    this: ResultAsync<readonly U[], E>,
+    index: number,
+    mapError: (val: T) => F = mapCheckError as () => F,
+  ): ResultAsync<U, E | F | RetupleCheckFailedError<T>> {
+    return new ResultAsync<U, E | F | RetupleCheckFailedError<T>>(
+      this.#inner.then((res) => {
+        if (res instanceof ResultErr) {
+          return res;
+        }
+
+        const element = res[1]![index];
+
+        return element ? Ok(element) : Err(mapError(res[1] as T));
+      }),
+    );
+  }
+
+  /**
+   * The same as {@link Retuple.$firstIndex|$firstIndex}, except it returns
+   * {@link ResultAsync}.
+   */
+  $firstIndex<U>(
+    this: ResultAsync<readonly U[], E>,
+  ): ResultAsync<U, E | RetupleCheckFailedError<T>>;
+  $firstIndex<U, F = E>(
+    this: ResultAsync<readonly U[], E>,
     mapError: (val: T) => F,
-  ): ResultAsync<T, E | F>;
-  $andFirst<U, F = E>(
-    this: ResultAsync<readonly [U?, ...any[]], E> | ResultAsync<readonly [], E>,
+  ): ResultAsync<U, E | F>;
+  $firstIndex<U, F = E>(
+    this: ResultAsync<readonly U[], E>,
     mapError: (val: T) => F = mapCheckError as () => F,
   ): ResultAsync<U, E | F | RetupleCheckFailedError<T>> {
     return new ResultAsync<U, E | F | RetupleCheckFailedError<T>>(
@@ -1969,6 +2227,106 @@ class ResultAsync<T, E> {
         } catch (err) {
           return Err(mapError(err));
         }
+      }),
+    );
+  }
+
+  /**
+   * Execute a pipeline starting with the resolved `Ok` value of this result,
+   * resolving to the `Ok` of the final function in the pipe or the first
+   * `Err` encountered. If you only need to execute a single function, use
+   * `$andThen`.
+   *
+   * Uses the same strategy as {@link Result.$pipeAsync}, equivalent to calling:
+   *
+   * ```ts
+   * resultAsync.$andThen(
+   *   (val) => Result.$pipeAsync(
+   *     () => fn1(val),
+   *     async (val2) => fn2(val2),
+   *   ),
+   * );
+   * ```
+   */
+  $andPipe<T0, E0, T1, E1>(
+    this: ResultAsync<T, E>,
+    f0: (val: T) => ResultLikeAwaitable<T0, E0>,
+    f1: (val0: T0) => ResultLikeAwaitable<T1, E1>,
+  ): ResultAsync<T1, E0 | E1>;
+  $andPipe<T0, E0, T1, E1, T2, E2>(
+    this: ResultAsync<T, E>,
+    f0: (val: T) => ResultLikeAwaitable<T0, E0>,
+    f1: (val0: T0) => ResultLikeAwaitable<T1, E1>,
+    f2: (val1: T1) => ResultLikeAwaitable<T2, E2>,
+  ): ResultAsync<T2, E0 | E1 | E2>;
+  $andPipe<T0, E0, T1, E1, T2, E2, T3, E3>(
+    this: ResultAsync<T, E>,
+    f0: (val: T) => ResultLikeAwaitable<T0, E0>,
+    f1: (val0: T0) => ResultLikeAwaitable<T1, E1>,
+    f2: (val1: T1) => ResultLikeAwaitable<T2, E2>,
+    f3: (val2: T2) => ResultLikeAwaitable<T3, E3>,
+  ): ResultAsync<T3, E0 | E1 | E2 | E3>;
+  $andPipe<T0, E0, T1, E1, T2, E2, T3, E3, T4, E4>(
+    this: ResultAsync<T, E>,
+    f0: (val: T) => ResultLikeAwaitable<T0, E0>,
+    f1: (val0: T0) => ResultLikeAwaitable<T1, E1>,
+    f2: (val1: T1) => ResultLikeAwaitable<T2, E2>,
+    f3: (val2: T2) => ResultLikeAwaitable<T3, E3>,
+    f4: (val3: T3) => ResultLikeAwaitable<T4, E4>,
+  ): ResultAsync<T4, E0 | E1 | E2 | E3 | E4>;
+  $andPipe<T0, E0, T1, E1, T2, E2, T3, E3, T4, E4, T5, E5>(
+    this: ResultAsync<T, E>,
+    f0: (val: T) => ResultLikeAwaitable<T0, E0>,
+    f1: (val0: T0) => ResultLikeAwaitable<T1, E1>,
+    f2: (val1: T1) => ResultLikeAwaitable<T2, E2>,
+    f3: (val2: T2) => ResultLikeAwaitable<T3, E3>,
+    f4: (val3: T3) => ResultLikeAwaitable<T4, E4>,
+    f5: (val4: T4) => ResultLikeAwaitable<T5, E5>,
+  ): ResultAsync<T5, E0 | E1 | E2 | E3 | E4 | E5>;
+  $andPipe<T0, E0, T1, E1, T2, E2, T3, E3, T4, E4, T5, E5, T6, E6>(
+    this: ResultAsync<T, E>,
+    f0: (val: T) => ResultLikeAwaitable<T0, E0>,
+    f1: (val0: T0) => ResultLikeAwaitable<T1, E1>,
+    f2: (val1: T1) => ResultLikeAwaitable<T2, E2>,
+    f3: (val2: T2) => ResultLikeAwaitable<T3, E3>,
+    f4: (val3: T3) => ResultLikeAwaitable<T4, E4>,
+    f5: (val4: T4) => ResultLikeAwaitable<T5, E5>,
+    f6: (val5: T5) => ResultLikeAwaitable<T6, E6>,
+  ): ResultAsync<T6, E0 | E1 | E2 | E3 | E4 | E5 | E6>;
+  $andPipe<T0, E0, T1, E1, T2, E2, T3, E3, T4, E4, T5, E5, T6, E6, T7, E7>(
+    this: ResultAsync<T, E>,
+    f0: (val: T) => ResultLikeAwaitable<T0, E0>,
+    f1: (val0: T0) => ResultLikeAwaitable<T1, E1>,
+    f2: (val1: T1) => ResultLikeAwaitable<T2, E2>,
+    f3: (val2: T2) => ResultLikeAwaitable<T3, E3>,
+    f4: (val3: T3) => ResultLikeAwaitable<T4, E4>,
+    f5: (val4: T4) => ResultLikeAwaitable<T5, E5>,
+    f6: (val5: T5) => ResultLikeAwaitable<T6, E6>,
+    f7: (val6: T6) => ResultLikeAwaitable<T7, E7>,
+  ): ResultAsync<T7, E | E0 | E1 | E2 | E3 | E4 | E5 | E6 | E7>;
+  $andPipe(
+    this: ResultAsync<T, E>,
+    ...fx: ((val: any) => ResultLikeAwaitable<any, any>)[]
+  ): ResultAsync<any, any> {
+    return new ResultAsync(
+      this.#inner.then(async (res) => {
+        if (res instanceof ResultErr) {
+          return res;
+        }
+
+        let current: any = res[1];
+
+        for (const f of fx) {
+          const result = asResult(await f(current));
+
+          if (result instanceof ResultErr) {
+            return result;
+          }
+
+          current = result[1];
+        }
+
+        return Ok(current);
       }),
     );
   }
@@ -2647,10 +3005,10 @@ interface Retuple<T, E> extends ResultLike<T, E> {
    * assert.equal(asserted.$unwrapErr(), "value was null");
    * ```
    */
-  $andAssert(
+  $assert(
     this: Result<T, E>,
   ): Result<Truthy<T>, E | RetupleCheckFailedError<T>>;
-  $andAssert<F = E>(
+  $assert<F = E>(
     this: Result<T, E>,
     mapError: (val: T) => F,
   ): Result<Truthy<T>, E | F>;
@@ -2690,30 +3048,30 @@ interface Retuple<T, E> extends ResultLike<T, E> {
    * assert.equal(checked.$unwrapErr(), "value was test");
    * ```
    */
-  $andCheck<U extends T = T>(
+  $check<U extends T = T>(
     this: Result<T, E>,
     predicate: (val: T) => val is U,
   ): Result<U, E | RetupleCheckFailedError<T>>;
-  $andCheck(
+  $check(
     this: Result<T, E>,
     check: (val: T) => unknown,
   ): Result<T, E | RetupleCheckFailedError<T>>;
-  $andCheck<U extends T = T, F = E>(
+  $check<U extends T = T, F = E>(
     this: Result<T, E>,
     predicate: (val: T) => val is U,
     mapError: (val: T) => F,
   ): Result<U, E | F>;
-  $andCheck<F = E>(
+  $check<F = E>(
     this: Result<T, E>,
     check: (val: T) => unknown,
     mapError: (val: T) => F,
   ): Result<T, E | F>;
 
   /**
-   * Checks the first element of the contained array when when this result
+   * Checks the specified element of the contained array when when this result
    * is `Ok`:
    *
-   * - returning `Ok` containing the first array element when it is truthy.
+   * - returning `Ok` containing the specified element when it is truthy.
    *   Narrows the type to include only truthy values;
    * - returning `Err` containing the return value of the map error function
    *   when the first array element fails the check;
@@ -2745,18 +3103,24 @@ interface Retuple<T, E> extends ResultLike<T, E> {
    * assert.equal(first.$unwrapErr(), "value was null");
    * ```
    */
-  $andFirst(
-    this: Result<readonly [], E>,
-  ): Result<never, E | RetupleCheckFailedError<[]>>;
-  $andFirst<U>(
-    this: Result<readonly [U?, ...any[]], E>,
+  $atIndex<U>(
+    this: Result<readonly U[], E>,
+    index: number,
   ): Result<Truthy<U>, E | RetupleCheckFailedError<T>>;
-  $andFirst<F = E>(
-    this: Result<readonly [], E>,
-    mapError: (val: readonly []) => F,
-  ): Result<never, E | F>;
-  $andFirst<U, F = E>(
-    this: Result<readonly [U?, ...any[]], E>,
+  $atIndex<U, F = E>(
+    this: Result<readonly U[], E>,
+    index: number,
+    mapError: (val: T) => F,
+  ): Result<Truthy<U>, E | F>;
+
+  /**
+   * Equivalent to calling `result.$atIndex(0)`.
+   */
+  $firstIndex<U>(
+    this: Result<readonly U[], E>,
+  ): Result<Truthy<U>, E | RetupleCheckFailedError<T>>;
+  $firstIndex<U, F = E>(
+    this: Result<readonly U[], E>,
     mapError: (val: T) => F,
   ): Result<Truthy<U>, E | F>;
 
@@ -3214,6 +3578,128 @@ interface Retuple<T, E> extends ResultLike<T, E> {
     promise: PromiseLike<U>,
     mapError: (err: unknown) => F,
   ): ResultAsync<U, E | F>;
+
+  /**
+   * Execute a pipeline starting with the `Ok` value of this result, returning
+   * the `Ok` of the final function in the pipe or the first `Err` encountered.
+   * If you only need to execute a single function, use `$andThen`
+   *
+   * Uses the same strategy as {@link Result.$pipe}, equivalent to calling:
+   *
+   * ```ts
+   * result.$andThen(
+   *   (val) => Result.$pipe(
+   *     () => fn1(val),
+   *     (val2) => fn2(val2),
+   *   ),
+   * );
+   * ```
+   */
+  $andPipe<T0, E0, T1, E1>(
+    this: ResultLike<T, E>,
+    f0: (val: T) => ResultLike<T0, E0>,
+    f1: (val: T0) => ResultLike<T1, E1>,
+  ): Result<T1, E | E0 | E1>;
+  $andPipe<T0, E0, T1, E1, T2, E2>(
+    f0: (val: T) => ResultLike<T0, E0>,
+    f1: (val0: T0) => ResultLike<T1, E1>,
+    f2: (val1: T1) => ResultLike<T2, E2>,
+  ): Result<T2, E | E0 | E1 | E2>;
+  $andPipe<T0, E0, T1, E1, T2, E2, T3, E3>(
+    f0: (val: T) => ResultLike<T0, E0>,
+    f1: (val0: T0) => ResultLike<T1, E1>,
+    f2: (val1: T1) => ResultLike<T2, E2>,
+    f3: (val2: T2) => ResultLike<T3, E3>,
+  ): Result<T3, E | E0 | E1 | E2 | E3>;
+  $andPipe<T0, E0, T1, E1, T2, E2, T3, E3, T4, E4>(
+    f0: (val: T) => ResultLike<T0, E0>,
+    f1: (val0: T0) => ResultLike<T1, E1>,
+    f2: (val1: T1) => ResultLike<T2, E2>,
+    f3: (val2: T2) => ResultLike<T3, E3>,
+    f4: (val3: T3) => ResultLike<T4, E4>,
+  ): Result<T4, E | E0 | E1 | E2 | E3 | E4>;
+  $andPipe<T0, E0, T1, E1, T2, E2, T3, E3, T4, E4, T5, E5>(
+    f0: (val: T) => ResultLike<T0, E0>,
+    f1: (val0: T0) => ResultLike<T1, E1>,
+    f2: (val1: T1) => ResultLike<T2, E2>,
+    f3: (val2: T2) => ResultLike<T3, E3>,
+    f4: (val3: T3) => ResultLike<T4, E4>,
+    f5: (val4: T4) => ResultLike<T5, E5>,
+  ): Result<T5, E | E0 | E1 | E2 | E3 | E4 | E5>;
+  $andPipe<T0, E0, T1, E1, T2, E2, T3, E3, T4, E4, T5, E5, T6, E6>(
+    f0: (val: T) => ResultLike<T0, E0>,
+    f1: (val0: T0) => ResultLike<T1, E1>,
+    f2: (val1: T1) => ResultLike<T2, E2>,
+    f3: (val2: T2) => ResultLike<T3, E3>,
+    f4: (val3: T3) => ResultLike<T4, E4>,
+    f5: (val4: T4) => ResultLike<T5, E5>,
+    f6: (val5: T5) => ResultLike<T6, E6>,
+  ): Result<T6, E | E0 | E1 | E2 | E3 | E4 | E5 | E6>;
+  $andPipe<T0, E0, T1, E1, T2, E2, T3, E3, T4, E4, T5, E5, T6, E6, T7, E7>(
+    f0: (val: T) => ResultLike<T0, E0>,
+    f1: (val0: T0) => ResultLike<T1, E1>,
+    f2: (val1: T1) => ResultLike<T2, E2>,
+    f3: (val2: T2) => ResultLike<T3, E3>,
+    f4: (val3: T3) => ResultLike<T4, E4>,
+    f5: (val4: T4) => ResultLike<T5, E5>,
+    f6: (val5: T5) => ResultLike<T6, E6>,
+    f7: (val6: T6) => ResultLike<T7, E7>,
+  ): Result<T7, E | E0 | E1 | E2 | E3 | E4 | E5 | E6 | E7>;
+
+  /**
+   * Shorthand for `result.$async().$andPipe(...)`
+   *
+   * If you only need to execute a single function, use `$andThenAsync`
+   */
+  $andPipeAsync<T0, E0, T1, E1>(
+    f0: (val: T) => ResultLikeAwaitable<T0, E0>,
+    f1: (val0: T0) => ResultLikeAwaitable<T1, E1>,
+  ): ResultAsync<T1, E0 | E1>;
+  $andPipeAsync<T0, E0, T1, E1, T2, E2>(
+    f0: (val: T) => ResultLikeAwaitable<T0, E0>,
+    f1: (val0: T0) => ResultLikeAwaitable<T1, E1>,
+    f2: (val1: T1) => ResultLikeAwaitable<T2, E2>,
+  ): ResultAsync<T2, E0 | E1 | E2>;
+  $andPipeAsync<T0, E0, T1, E1, T2, E2, T3, E3>(
+    f0: (val: T) => ResultLikeAwaitable<T0, E0>,
+    f1: (val0: T0) => ResultLikeAwaitable<T1, E1>,
+    f2: (val1: T1) => ResultLikeAwaitable<T2, E2>,
+    f3: (val2: T2) => ResultLikeAwaitable<T3, E3>,
+  ): ResultAsync<T3, E0 | E1 | E2 | E3>;
+  $andPipeAsync<T0, E0, T1, E1, T2, E2, T3, E3, T4, E4>(
+    f0: (val: T) => ResultLikeAwaitable<T0, E0>,
+    f1: (val0: T0) => ResultLikeAwaitable<T1, E1>,
+    f2: (val1: T1) => ResultLikeAwaitable<T2, E2>,
+    f3: (val2: T2) => ResultLikeAwaitable<T3, E3>,
+    f4: (val3: T3) => ResultLikeAwaitable<T4, E4>,
+  ): ResultAsync<T4, E0 | E1 | E2 | E3 | E4>;
+  $andPipeAsync<T0, E0, T1, E1, T2, E2, T3, E3, T4, E4, T5, E5>(
+    f0: (val: T) => ResultLikeAwaitable<T0, E0>,
+    f1: (val0: T0) => ResultLikeAwaitable<T1, E1>,
+    f2: (val1: T1) => ResultLikeAwaitable<T2, E2>,
+    f3: (val2: T2) => ResultLikeAwaitable<T3, E3>,
+    f4: (val3: T3) => ResultLikeAwaitable<T4, E4>,
+    f5: (val4: T4) => ResultLikeAwaitable<T5, E5>,
+  ): ResultAsync<T5, E0 | E1 | E2 | E3 | E4 | E5>;
+  $andPipeAsync<T0, E0, T1, E1, T2, E2, T3, E3, T4, E4, T5, E5, T6, E6>(
+    f0: (val: T) => ResultLikeAwaitable<T0, E0>,
+    f1: (val0: T0) => ResultLikeAwaitable<T1, E1>,
+    f2: (val1: T1) => ResultLikeAwaitable<T2, E2>,
+    f3: (val2: T2) => ResultLikeAwaitable<T3, E3>,
+    f4: (val3: T3) => ResultLikeAwaitable<T4, E4>,
+    f5: (val4: T4) => ResultLikeAwaitable<T5, E5>,
+    f6: (val5: T5) => ResultLikeAwaitable<T6, E6>,
+  ): ResultAsync<T6, E0 | E1 | E2 | E3 | E4 | E5 | E6>;
+  $andPipeAsync<T0, E0, T1, E1, T2, E2, T3, E3, T4, E4, T5, E5, T6, E6, T7, E7>(
+    f0: (val: T) => ResultLikeAwaitable<T0, E0>,
+    f1: (val0: T0) => ResultLikeAwaitable<T1, E1>,
+    f2: (val1: T1) => ResultLikeAwaitable<T2, E2>,
+    f3: (val2: T2) => ResultLikeAwaitable<T3, E3>,
+    f4: (val3: T3) => ResultLikeAwaitable<T4, E4>,
+    f5: (val4: T4) => ResultLikeAwaitable<T5, E5>,
+    f6: (val5: T5) => ResultLikeAwaitable<T6, E6>,
+    f7: (val6: T6) => ResultLikeAwaitable<T7, E7>,
+  ): ResultAsync<T7, E | E0 | E1 | E2 | E3 | E4 | E5 | E6 | E7>;
 
   /**
    * Calls the peek function and returns {@link Result} equivalent to this
