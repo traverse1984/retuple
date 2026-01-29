@@ -58,6 +58,45 @@ export class RetupleExpectFailed<const E = unknown> extends Error {
 }
 
 /**
+ * ## Retuple Assert Failed
+ *
+ * This error is used as the error type of a `Result` when using $assert,
+ * when no map error function is provided.
+ */
+export class RetupleAssertFailed<const T = unknown> extends Error {
+  constructor(public value: T) {
+    super("Assert failed");
+  }
+}
+
+/**
+ * ## Retuple Filter Failed
+ *
+ * This error is used as the error type of a `Result` when using $filter,
+ * when no map error function is provided.
+ */
+export class RetupleFilterFailed<const T = unknown> extends Error {
+  constructor(public value: T) {
+    super("Filter failed");
+  }
+}
+
+/**
+ * ## Retuple Index Failed
+ *
+ * This error is used as the error type of a `Result` when using $atIndex or
+ * $firstIndex, when no map error function is provided.
+ */
+export class RetupleIndexFailed<const T = unknown> extends Error {
+  constructor(
+    public index: number,
+    public value: T,
+  ) {
+    super("Index failed");
+  }
+}
+
+/**
  * ## Retuple Thrown Value Error
  *
  * An error constructed when a safe function call throws or rejects, when the
@@ -84,18 +123,6 @@ export class RetupleInvalidUnionError extends Error {
       "Constructing a Result from discriminated union failed, the success " +
         "property must be boolean",
     );
-  }
-}
-
-/**
- * ## Retuple Check Failed Error
- *
- * This error is used as the error type of a `Result` when using $andAssert
- * or $andCheck, when no custom error handler is provided.
- */
-export class RetupleCheckFailedError<const T = unknown> extends Error {
-  constructor(public value: T) {
-    super("Check failed");
   }
 }
 
@@ -1284,36 +1311,56 @@ class ResultOk<T, E> extends Array<T | undefined> implements Retuple<T, E> {
 
   $assert<F>(
     this: ThisOk<T>,
-    mapError: (val: T) => F = mapCheckError as () => F,
-  ): Result<Truthy<T>, E | F> {
-    return this[1] ? (this as ThisOk<Truthy<T>>) : Err(mapError(this[1]));
+    mapError?: (val: Falsey<T>) => F,
+  ): Result<Truthy<T>, F | RetupleAssertFailed<T>> {
+    return this[1]
+      ? (this as ThisOk<Truthy<T>>)
+      : Err(
+          mapError
+            ? mapError(this[1] as Falsey<T>)
+            : new RetupleAssertFailed(this[1]),
+        );
   }
 
-  $check<U extends T, F>(
+  $filter<U extends T, F>(
     this: ThisOk<T>,
-    check: (val: T) => val is U,
-    mapError: (val: T) => F = mapCheckError as () => F,
-  ): Result<U, E | F> {
-    return check(this[1]) ? (this as ThisOk<U>) : Err(mapError(this[1]));
+    filter: (val: T) => val is U,
+    mapError?: (val: T) => F,
+  ): Result<U, F | RetupleFilterFailed<T>> {
+    return filter(this[1])
+      ? (this as ThisOk<U>)
+      : Err(mapError ? mapError(this[1]) : new RetupleFilterFailed(this[1]));
   }
 
-  $atIndex<U, F = E>(
+  $atIndex<U, F>(
     this: ThisOk<readonly U[]>,
     index: number,
-    mapError: (val: T) => F = mapCheckError as (val: T) => F,
-  ): Result<Truthy<U>, F | RetupleCheckFailedError<T>> {
+    mapError?: (val: T) => F,
+  ): Result<Truthy<U>, F | RetupleIndexFailed<T>> {
     const element = this[1]![index];
 
-    return element ? Ok(element as Truthy<U>) : Err(mapError(this[1] as any));
+    return element
+      ? Ok(element as Truthy<U>)
+      : Err(
+          mapError
+            ? mapError(this[1] as T)
+            : new RetupleIndexFailed(index, this[1] as T),
+        );
   }
 
-  $firstIndex<U, F = E>(
+  $firstIndex<U, F>(
     this: ThisOk<readonly U[]>,
-    mapError: (val: T) => F = mapCheckError as (val: T) => F,
-  ): Result<Truthy<U>, F | RetupleCheckFailedError<T>> {
+    mapError?: (val: T) => F,
+  ): Result<Truthy<U>, F | RetupleFilterFailed<T>> {
     const first = this[1]![0];
 
-    return first ? Ok(first as Truthy<U>) : Err(mapError(this[1] as any));
+    return first
+      ? Ok(first as Truthy<U>)
+      : Err(
+          mapError
+            ? mapError(this[1] as T)
+            : new RetupleIndexFailed(0, this[1] as T),
+        );
   }
 
   $or(this: ThisOk<T>): ThisOk<T> {
@@ -1555,7 +1602,7 @@ class ResultErr<T, E> extends Array<E | undefined> implements Retuple<T, E> {
     return this;
   }
 
-  $check(this: ThisErr<E>): ThisErr<E> {
+  $filter(this: ThisErr<E>): ThisErr<E> {
     return this;
   }
 
@@ -1832,21 +1879,21 @@ class ResultAsync<T, E> {
   }
 
   /**
-   * The same as {@link Retuple.$check|$andAssert}, except it returns
+   * The same as {@link Retuple.$assert|$assert}, except it returns
    * {@link ResultAsync}.
    */
   $assert(
     this: ResultAsync<T, E>,
-  ): ResultAsync<Truthy<T>, E | RetupleCheckFailedError<T>>;
+  ): ResultAsync<Truthy<T>, E | RetupleAssertFailed<T>>;
   $assert<F = E>(
     this: ResultAsync<T, E>,
-    mapError: (val: T) => F,
+    mapError: (val: Falsey<T>) => F,
   ): ResultAsync<Truthy<T>, E | F>;
   $assert<F = E>(
     this: ResultAsync<T, E>,
-    mapError: (val: T) => F = mapCheckError as () => F,
-  ): ResultAsync<Truthy<T>, E | F | RetupleCheckFailedError<T>> {
-    return new ResultAsync<Truthy<T>, E | F | RetupleCheckFailedError<T>>(
+    mapError?: (val: Falsey<T>) => F,
+  ): ResultAsync<Truthy<T>, E | F | RetupleAssertFailed<T>> {
+    return new ResultAsync<Truthy<T>, E | F | RetupleAssertFailed<T>>(
       this.#inner.then(async (res) => {
         if (res instanceof ResultErr) {
           return res;
@@ -1854,45 +1901,55 @@ class ResultAsync<T, E> {
 
         return res[1]
           ? (res as Result<Truthy<T>, E>)
-          : Err(mapError(res[1] as T));
+          : Err(
+              mapError
+                ? mapError(res[1] as Falsey<T>)
+                : new RetupleAssertFailed(res[1] as T),
+            );
       }),
     );
   }
 
   /**
-   * The same as {@link Retuple.$check|$andCheck}, except it returns
+   * The same as {@link Retuple.$filter|$filter}, except it returns
    * {@link ResultAsync}.
    */
-  $check<U extends T = T>(
+  $filter<U extends T = T>(
     this: ResultAsync<T, E>,
     predicate: (val: T) => val is U,
-  ): ResultAsync<U, E | RetupleCheckFailedError<T>>;
-  $check(
+  ): ResultAsync<U, E | RetupleFilterFailed<T>>;
+  $filter(
     this: ResultAsync<T, E>,
     check: (val: T) => unknown,
-  ): ResultAsync<T, E | RetupleCheckFailedError<T>>;
-  $check<U extends T = T, F = E>(
+  ): ResultAsync<T, E | RetupleFilterFailed<T>>;
+  $filter<U extends T = T, F = E>(
     this: ResultAsync<T, E>,
     predicate: (val: T) => val is U,
     mapError: (val: T) => F,
   ): ResultAsync<U, E | F>;
-  $check<F = E>(
+  $filter<F = E>(
     this: ResultAsync<T, E>,
     check: (val: T) => unknown,
     mapError: (val: T) => F,
   ): ResultAsync<T, E | F>;
-  $check<U extends T, F = E>(
+  $filter<U extends T, F = E>(
     this: ResultAsync<T, E>,
     check: ((val: T) => unknown) | ((val: T) => val is U),
-    mapError: (val: T) => F = mapCheckError as () => F,
-  ): ResultAsync<T | U, E | F | RetupleCheckFailedError<T>> {
-    return new ResultAsync<T | U, E | F | RetupleCheckFailedError<T>>(
+    mapError?: (val: T) => F,
+  ): ResultAsync<T | U, E | F | RetupleFilterFailed<T>> {
+    return new ResultAsync<T | U, E | F | RetupleFilterFailed<T>>(
       this.#inner.then(async (res) => {
         if (res instanceof ResultErr) {
           return res;
         }
 
-        return check(res[1] as T) ? res : Err(mapError(res[1] as T));
+        return check(res[1] as T)
+          ? res
+          : Err(
+              mapError
+                ? mapError(res[1] as T)
+                : new RetupleFilterFailed(res[1] as T),
+            );
       }),
     );
   }
@@ -1904,7 +1961,7 @@ class ResultAsync<T, E> {
   $atIndex<U>(
     this: ResultAsync<readonly U[], E>,
     index: number,
-  ): ResultAsync<U, E | RetupleCheckFailedError<T>>;
+  ): ResultAsync<U, E | RetupleFilterFailed<T>>;
   $atIndex<U, F = E>(
     this: ResultAsync<readonly U[], E>,
     index: number,
@@ -1913,9 +1970,9 @@ class ResultAsync<T, E> {
   $atIndex<U, F = E>(
     this: ResultAsync<readonly U[], E>,
     index: number,
-    mapError: (val: T) => F = mapCheckError as () => F,
-  ): ResultAsync<U, E | F | RetupleCheckFailedError<T>> {
-    return new ResultAsync<U, E | F | RetupleCheckFailedError<T>>(
+    mapError?: (val: T) => F,
+  ): ResultAsync<U, E | F | RetupleFilterFailed<T>> {
+    return new ResultAsync<U, E | F | RetupleFilterFailed<T>>(
       this.#inner.then((res) => {
         if (res instanceof ResultErr) {
           return res;
@@ -1923,7 +1980,13 @@ class ResultAsync<T, E> {
 
         const element = res[1]![index];
 
-        return element ? Ok(element) : Err(mapError(res[1] as T));
+        return element
+          ? Ok(element)
+          : Err(
+              mapError
+                ? mapError(res[1] as T)
+                : new RetupleIndexFailed(index, res[1] as T),
+            );
       }),
     );
   }
@@ -1934,16 +1997,16 @@ class ResultAsync<T, E> {
    */
   $firstIndex<U>(
     this: ResultAsync<readonly U[], E>,
-  ): ResultAsync<U, E | RetupleCheckFailedError<T>>;
+  ): ResultAsync<U, E | RetupleIndexFailed<T>>;
   $firstIndex<U, F = E>(
     this: ResultAsync<readonly U[], E>,
     mapError: (val: T) => F,
   ): ResultAsync<U, E | F>;
   $firstIndex<U, F = E>(
     this: ResultAsync<readonly U[], E>,
-    mapError: (val: T) => F = mapCheckError as () => F,
-  ): ResultAsync<U, E | F | RetupleCheckFailedError<T>> {
-    return new ResultAsync<U, E | F | RetupleCheckFailedError<T>>(
+    mapError?: (val: T) => F,
+  ): ResultAsync<U, E | F | RetupleIndexFailed<T>> {
+    return new ResultAsync<U, E | F | RetupleIndexFailed<T>>(
       this.#inner.then((res) => {
         if (res instanceof ResultErr) {
           return res;
@@ -1951,7 +2014,13 @@ class ResultAsync<T, E> {
 
         const first = res[1]![0];
 
-        return first ? Ok(first) : Err(mapError(res[1] as T));
+        return first
+          ? Ok(first)
+          : Err(
+              mapError
+                ? mapError(res[1] as T)
+                : new RetupleIndexFailed(0, res[1] as T),
+            );
       }),
     );
   }
@@ -2645,10 +2714,6 @@ function mapTrue<E>(): E {
   return true as E;
 }
 
-function mapCheckError<T>(value: T): RetupleCheckFailedError<T> {
-  return new RetupleCheckFailedError(value);
-}
-
 interface Retuple<T, E> extends ResultLike<T, E> {
   /**
    * Returns true when this result is `Ok`. Acts as a type guard.
@@ -2978,7 +3043,7 @@ interface Retuple<T, E> extends ResultLike<T, E> {
    *   Narrows the `T` type to include only truthy values;
    * - returning `Err` containing the return value of the map error function
    *   when the ok value is falsey;
-   * - returning `Err` containing {@link RetupleCheckFailedError} when the
+   * - returning `Err` containing {@link RetupleAssertFailed} when the
    *   ok value is falsey, and when no map error function is provided.
    *
    * Otherwise returns `Err` containing the current error value.
@@ -2987,7 +3052,7 @@ interface Retuple<T, E> extends ResultLike<T, E> {
    *
    * ```ts
    * const result: Result<string | null, never> = Ok("test");
-   * const asserted = result.$andAssert();
+   * const asserted = result.$assert();
    *
    * asserted satisfies Result<string, RetupleCheckFailedError<string | null>>;
    * assert.equal(asserted.$unwrap(), "test");
@@ -2997,7 +3062,7 @@ interface Retuple<T, E> extends ResultLike<T, E> {
    *
    * ```ts
    * const result: Result<string | null | undefined, never> = Ok(null);
-   * const asserted = result.$andAssert(
+   * const asserted = result.$assert(
    *   (val) => val === null ? "value was null" : "value was undefined"
    * );
    *
@@ -3005,23 +3070,21 @@ interface Retuple<T, E> extends ResultLike<T, E> {
    * assert.equal(asserted.$unwrapErr(), "value was null");
    * ```
    */
-  $assert(
-    this: Result<T, E>,
-  ): Result<Truthy<T>, E | RetupleCheckFailedError<T>>;
+  $assert(this: Result<T, E>): Result<Truthy<T>, E | RetupleFilterFailed<T>>;
   $assert<F = E>(
     this: Result<T, E>,
-    mapError: (val: T) => F,
+    mapError: (val: Falsey<T>) => F,
   ): Result<Truthy<T>, E | F>;
 
   /**
    * Performs a check when this result is `Ok`:
    *
-   * - returning `Ok` containing the current ok value when the predicate/check
-   *   function returns true. Narrows the `T` type based on the check function;
+   * - returning `Ok` containing the current ok value when the filter function
+   *   returns true. Narrows the `T` type based on the filter function;
    * - returning `Err` containing the return value of the map error function
-   *   when the ok value fails the check;
-   * - returning `Err` containing {@link RetupleCheckFailedError} when the
-   *   ok value fails the check, and when no map error function is provided.
+   *   when the ok value fails the filter;
+   * - returning `Err` containing {@link RetupleFilterFailed} when the
+   *   ok value fails the filter, and when no map error function is provided.
    *
    * Otherwise returns `Err` containing the current error value.
    *
@@ -3029,7 +3092,7 @@ interface Retuple<T, E> extends ResultLike<T, E> {
    *
    * ```ts
    * const result: Result<string, never> = Ok("test");
-   * const asserted = result.$andCheck((val) => val === "test");
+   * const asserted = result.$filter((val) => val === "test");
    *
    * asserted satisfies Result<string, RetupleCheckFailedError<string>>;
    * assert.equal(asserted.$unwrap(), "test");
@@ -3039,7 +3102,7 @@ interface Retuple<T, E> extends ResultLike<T, E> {
    *
    * ```ts
    * const result: Result<string, never> = Ok("test");
-   * const checked = result.$andCheck(
+   * const checked = result.$filter(
    *   (val) => val === "value",
    *   (val) => `value was ${val}`,
    * );
@@ -3048,22 +3111,22 @@ interface Retuple<T, E> extends ResultLike<T, E> {
    * assert.equal(checked.$unwrapErr(), "value was test");
    * ```
    */
-  $check<U extends T = T>(
+  $filter<U extends T = T>(
     this: Result<T, E>,
     predicate: (val: T) => val is U,
-  ): Result<U, E | RetupleCheckFailedError<T>>;
-  $check(
+  ): Result<U, E | RetupleFilterFailed<T>>;
+  $filter(
     this: Result<T, E>,
-    check: (val: T) => unknown,
-  ): Result<T, E | RetupleCheckFailedError<T>>;
-  $check<U extends T = T, F = E>(
+    filter: (val: T) => unknown,
+  ): Result<T, E | RetupleFilterFailed<T>>;
+  $filter<U extends T = T, F = E>(
     this: Result<T, E>,
     predicate: (val: T) => val is U,
     mapError: (val: T) => F,
   ): Result<U, E | F>;
-  $check<F = E>(
+  $filter<F = E>(
     this: Result<T, E>,
-    check: (val: T) => unknown,
+    filter: (val: T) => unknown,
     mapError: (val: T) => F,
   ): Result<T, E | F>;
 
@@ -3074,9 +3137,9 @@ interface Retuple<T, E> extends ResultLike<T, E> {
    * - returning `Ok` containing the specified element when it is truthy.
    *   Narrows the type to include only truthy values;
    * - returning `Err` containing the return value of the map error function
-   *   when the first array element fails the check;
-   * - returning `Err` containing {@link RetupleCheckFailedError} when the
-   *   first array elemnt fails the check, and when no map error function is
+   *   when the specified array element fails the check;
+   * - returning `Err` containing {@link RetupleIndexFailed} when the specified
+   *   array element fails the check, and when no map error function is
    *   provided.
    *
    * Otherwise returns `Err` containing the current error value.
@@ -3084,8 +3147,8 @@ interface Retuple<T, E> extends ResultLike<T, E> {
    * @example
    *
    * ```ts
-   * const result: Result<(string | null)[], never> = Ok(["test", null]);
-   * const first = result.$andFirst();
+   * const result: Result<(string | null)[], never> = Ok([null, "test"]);
+   * const first = result.$atIndex(1);
    *
    * first satisfies Result<string, RetupleCheckFailedError<string | null>>;
    * assert.equal(first.$unwrap(), "test");
@@ -3094,8 +3157,9 @@ interface Retuple<T, E> extends ResultLike<T, E> {
    * @example
    *
    * ```ts
-   * const result: Result<(string | null | undefined)[], never> = Ok([null, "test"]);
-   * const first = result.$andFirst(
+   * const result: Result<(string | null | undefined)[], never> = Ok(["test", null]);
+   * const first = result.$atIndex(
+   *   1,
    *   (val) => val === null ? "value was null" : "value was undefined",
    * );
    *
@@ -3106,7 +3170,7 @@ interface Retuple<T, E> extends ResultLike<T, E> {
   $atIndex<U>(
     this: Result<readonly U[], E>,
     index: number,
-  ): Result<Truthy<U>, E | RetupleCheckFailedError<T>>;
+  ): Result<Truthy<U>, E | RetupleIndexFailed<T>>;
   $atIndex<U, F = E>(
     this: Result<readonly U[], E>,
     index: number,
@@ -3118,7 +3182,7 @@ interface Retuple<T, E> extends ResultLike<T, E> {
    */
   $firstIndex<U>(
     this: Result<readonly U[], E>,
-  ): Result<Truthy<U>, E | RetupleCheckFailedError<T>>;
+  ): Result<Truthy<U>, E | RetupleFilterFailed<T>>;
   $firstIndex<U, F = E>(
     this: Result<readonly U[], E>,
     mapError: (val: T) => F,
@@ -3950,6 +4014,7 @@ type CollectErr<
 > = TResults[keyof TResults] extends Result<any, infer E> ? E : never;
 
 type Truthy<T> = Exclude<T, false | null | undefined | 0 | 0n | "">;
+type Falsey<T> = Extract<T, false | null | undefined | 0 | 0n | "">;
 type NonZero<N extends number> = N & (`${N}` extends "0" ? never : N);
 type NonNegativeOrDecimal<N extends number> = N &
   (`${N}` extends `-${string}` | `${string}.${string}` ? never : N);

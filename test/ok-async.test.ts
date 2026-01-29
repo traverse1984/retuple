@@ -14,7 +14,9 @@ import {
   Err,
   RetupleUnwrapErrFailed,
   RetupleCaughtValueError,
-  RetupleCheckFailedError,
+  RetupleAssertFailed,
+  RetupleFilterFailed,
+  RetupleIndexFailed,
 } from "../src/index.js";
 
 describe("ResultAsync (Ok)", async () => {
@@ -208,16 +210,16 @@ describe("ResultAsync (Ok)", async () => {
 
     it("should resolve to Err containing RetupleCheckFailedError contained value is falsey, and when no map error function is provided", async () => {
       await expect(Ok("").$async().$assert()).resolves.toStrictEqual(
-        Err(new RetupleCheckFailedError("")),
+        Err(new RetupleAssertFailed("")),
       );
     });
   });
 
-  describe("$check", () => {
+  describe("$filter", () => {
     it("should invoke the check function with the contained value", async () => {
       const fnCheck = vi.fn(() => true);
 
-      await Ok("").$async().$check(fnCheck);
+      await Ok("").$async().$filter(fnCheck);
 
       expect(fnCheck).toHaveBeenCalledExactlyOnceWith("");
     });
@@ -227,20 +229,20 @@ describe("ResultAsync (Ok)", async () => {
 
       await Ok("")
         .$async()
-        .$check(() => false, fnMapErr);
+        .$filter(() => false, fnMapErr);
 
       expect(fnMapErr).toHaveBeenCalledExactlyOnceWith("");
     });
 
     it("should reject when the check function throws", async () => {
-      await expect(Ok().$async().$check(fnThrow)).rejects.toBe(errThrow);
+      await expect(Ok().$async().$filter(fnThrow)).rejects.toBe(errThrow);
     });
 
     it("should reject when the map error function throws", async () => {
       await expect(
         Ok()
           .$async()
-          .$check(() => false, fnThrow),
+          .$filter(() => false, fnThrow),
       ).rejects.toBe(errThrow);
     });
 
@@ -248,7 +250,7 @@ describe("ResultAsync (Ok)", async () => {
       await expect(
         Ok("test")
           .$async()
-          .$check(() => true),
+          .$filter(() => true),
       ).resolves.toStrictEqual(Ok("test"));
     });
 
@@ -256,7 +258,7 @@ describe("ResultAsync (Ok)", async () => {
       await expect(
         Ok(false)
           .$async()
-          .$check(
+          .$filter(
             () => false,
             () => "error",
           ),
@@ -267,8 +269,8 @@ describe("ResultAsync (Ok)", async () => {
       await expect(
         Ok("")
           .$async()
-          .$check(() => false),
-      ).resolves.toStrictEqual(Err(new RetupleCheckFailedError("")));
+          .$filter(() => false),
+      ).resolves.toStrictEqual(Err(new RetupleFilterFailed("")));
     });
   });
 
@@ -301,8 +303,8 @@ describe("ResultAsync (Ok)", async () => {
 
     it("should resolve to Err containing RetupleCheckFailedError when the array element is falsey, and when no map error function is provided", async () => {
       await expect(
-        Ok(["", "test"]).$async().$atIndex(0),
-      ).resolves.toStrictEqual(Err(new RetupleCheckFailedError(["", "test"])));
+        Ok(["test", ""]).$async().$atIndex(1),
+      ).resolves.toStrictEqual(Err(new RetupleIndexFailed(1, ["test", ""])));
     });
   });
 
@@ -336,7 +338,7 @@ describe("ResultAsync (Ok)", async () => {
     it("should resolve to Err containing RetupleCheckFailedError when the first array element is falsey, and when no map error function is provided", async () => {
       await expect(
         Ok(["", "test"]).$async().$firstIndex(),
-      ).resolves.toStrictEqual(Err(new RetupleCheckFailedError(["", "test"])));
+      ).resolves.toStrictEqual(Err(new RetupleIndexFailed(0, ["", "test"])));
     });
   });
 

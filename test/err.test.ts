@@ -279,11 +279,11 @@ describe("Err", () => {
     });
   });
 
-  describe("$check", () => {
+  describe("$filter", () => {
     it("should not invoke the check function", () => {
       const fnCheck = vi.fn(() => Ok());
 
-      Err().$check(fnCheck);
+      Err().$filter(fnCheck);
 
       expect(fnCheck).not.toHaveBeenCalled();
     });
@@ -291,13 +291,13 @@ describe("Err", () => {
     it("should not invoke the map error function", () => {
       const fnMapErr = vi.fn(() => true);
 
-      Err().$check(() => false, fnMapErr);
+      Err().$filter(() => false, fnMapErr);
 
       expect(fnMapErr).not.toHaveBeenCalled();
     });
 
     it("should return Err with the contained value", () => {
-      expect(Err("test").$check(() => true)).toStrictEqual(Err("test"));
+      expect(Err("test").$filter(() => true)).toStrictEqual(Err("test"));
     });
   });
 

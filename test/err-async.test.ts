@@ -222,11 +222,11 @@ describe("ResultAsync (Err)", () => {
     });
   });
 
-  describe("$check", () => {
+  describe("$filter", () => {
     it("should not invoke the check function", async () => {
       const fnCheck = vi.fn(() => "error");
 
-      await expect(Err("").$async().$check(fnCheck)).resolves.toStrictEqual(
+      await expect(Err("").$async().$filter(fnCheck)).resolves.toStrictEqual(
         Err(""),
       );
     });
@@ -237,7 +237,7 @@ describe("ResultAsync (Err)", () => {
       await expect(
         Err("")
           .$async()
-          .$check(() => false, fnMapErr),
+          .$filter(() => false, fnMapErr),
       ).resolves.toStrictEqual(Err(""));
     });
 
@@ -245,7 +245,7 @@ describe("ResultAsync (Err)", () => {
       await expect(
         Err("test")
           .$async()
-          .$check(() => true),
+          .$filter(() => true),
       ).resolves.toStrictEqual(Err("test"));
     });
   });

@@ -17,7 +17,9 @@ import {
   Err,
   RetupleUnwrapErrFailed,
   RetupleCaughtValueError,
-  RetupleCheckFailedError,
+  RetupleAssertFailed,
+  RetupleFilterFailed,
+  RetupleIndexFailed,
 } from "../src/index.js";
 
 describe("Ok", () => {
@@ -264,17 +266,15 @@ describe("Ok", () => {
     });
 
     it("should return Err containing RetupleCheckFailedError contained value is falsey, and when no map error function is provided", () => {
-      expect(Ok("").$assert()).toStrictEqual(
-        Err(new RetupleCheckFailedError("")),
-      );
+      expect(Ok("").$assert()).toStrictEqual(Err(new RetupleAssertFailed("")));
     });
   });
 
-  describe("$check", () => {
+  describe("$filter", () => {
     it("should invoke the check function with the contained value", () => {
       const fnCheck = vi.fn(() => true);
 
-      Ok("").$check(fnCheck);
+      Ok("").$filter(fnCheck);
 
       expect(fnCheck).toHaveBeenCalledExactlyOnceWith("");
     });
@@ -282,26 +282,26 @@ describe("Ok", () => {
     it("should invoke the map error function with the contained value when the check function returns a falsey value", () => {
       const fnMapErr = vi.fn(() => "error");
 
-      Ok("").$check(() => false, fnMapErr);
+      Ok("").$filter(() => false, fnMapErr);
 
       expect(fnMapErr).toHaveBeenCalledExactlyOnceWith("");
     });
 
     it("should throw when the check function throws", () => {
-      expect(capture(() => Ok().$check(fnThrow))).toBe(errThrow);
+      expect(capture(() => Ok().$filter(fnThrow))).toBe(errThrow);
     });
 
     it("should throw when the map error function throws", () => {
-      expect(capture(() => Ok().$check(() => false, fnThrow))).toBe(errThrow);
+      expect(capture(() => Ok().$filter(() => false, fnThrow))).toBe(errThrow);
     });
 
     it("should return Ok with the contained value when the check function returns a truthy value", () => {
-      expect(Ok("test").$check(() => true)).toStrictEqual(Ok("test"));
+      expect(Ok("test").$filter(() => true)).toStrictEqual(Ok("test"));
     });
 
     it("should return Err containing the return value of the map error function when the check function returns a falsey value", () => {
       expect(
-        Ok("").$check(
+        Ok("").$filter(
           () => false,
           () => "error",
         ),
@@ -309,8 +309,8 @@ describe("Ok", () => {
     });
 
     it("should return Err containing RetupleCheckFailedError when the check function returns a falsey value, and when no map error function is provided", () => {
-      expect(Ok("").$check(() => false)).toStrictEqual(
-        Err(new RetupleCheckFailedError("")),
+      expect(Ok("").$filter(() => false)).toStrictEqual(
+        Err(new RetupleFilterFailed("")),
       );
     });
   });
@@ -339,8 +339,8 @@ describe("Ok", () => {
     });
 
     it("should return Err containing RetupleCheckFailedError when the array element is falsey, and when no map error function is provided", () => {
-      expect(Ok(["", "test"]).$atIndex(0)).toStrictEqual(
-        Err(new RetupleCheckFailedError(["", "test"])),
+      expect(Ok(["test", ""]).$atIndex(1)).toStrictEqual(
+        Err(new RetupleIndexFailed(1, ["test", ""])),
       );
     });
   });
@@ -370,7 +370,7 @@ describe("Ok", () => {
 
     it("should return Err containing RetupleCheckFailedError when the first array element is falsey, and when no map error function is provided", () => {
       expect(Ok(["", "test"]).$firstIndex()).toStrictEqual(
-        Err(new RetupleCheckFailedError(["", "test"])),
+        Err(new RetupleIndexFailed(0, ["", "test"])),
       );
     });
   });
