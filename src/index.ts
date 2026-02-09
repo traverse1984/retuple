@@ -3991,7 +3991,9 @@ type ObjectUnionOk<T> = { success: true; data: T; error?: never | undefined };
 type ObjectUnionErr<E> = { success: false; data?: never | undefined; error: E };
 
 type AllOk<TResults extends ResultLikeAwaitable<any, any>[]> = {
-  [K in keyof TResults]: TResults[K] extends Result<infer T, any> ? T : never;
+  [K in keyof TResults]: TResults[K] extends ResultLikeAwaitable<infer T, any>
+    ? T
+    : never;
 };
 
 type AllErr<TResults extends ResultLikeAwaitable<any, any>[]> =
@@ -4001,17 +4003,24 @@ type AnyOk<TResult extends ResultLikeAwaitable<any, any>[]> =
   TResult[number] extends ResultLikeAwaitable<infer T, any> ? T : never;
 
 type AnyErr<TResults extends ResultLikeAwaitable<any, any>[]> = {
-  [K in keyof TResults]: TResults[K] extends Result<any, infer E> ? E : never;
+  [K in keyof TResults]: TResults[K] extends ResultLikeAwaitable<any, infer E>
+    ? E
+    : never;
 };
 
 type CollectOk<TResults extends Record<string, ResultLikeAwaitable<any, any>>> =
   {
-    [K in keyof TResults]: TResults[K] extends Result<infer T, any> ? T : never;
+    [K in keyof TResults]: TResults[K] extends ResultLikeAwaitable<infer T, any>
+      ? T
+      : never;
   } & {};
 
 type CollectErr<
   TResults extends Record<string, ResultLikeAwaitable<any, any>>,
-> = TResults[keyof TResults] extends Result<any, infer E> ? E : never;
+> =
+  TResults[keyof TResults] extends ResultLikeAwaitable<any, infer E>
+    ? E
+    : never;
 
 type Truthy<T> = Exclude<T, false | null | undefined | 0 | 0n | "">;
 type Falsey<T> = Extract<T, false | null | undefined | 0 | 0n | "">;
