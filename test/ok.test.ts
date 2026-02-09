@@ -491,6 +491,61 @@ describe("Ok", () => {
     });
   });
 
+  describe("$andThen", () => {
+    it("should invoke the and function with the contained value", () => {
+      const fnAnd = vi.fn(() => Err());
+
+      Ok("test").$andStack(fnAnd);
+
+      expect(fnAnd).toHaveBeenCalledExactlyOnceWith("test");
+    });
+
+    it("should throw when the and function throws", () => {
+      expect(capture(() => Ok().$andStack(fnThrow))).toBe(errThrow);
+    });
+
+    it("should return the error when the and result is Err", () => {
+      expect(Ok().$andStack(() => Err("test"))).toStrictEqual(Err("test"));
+    });
+
+    it("should return a tuple of the contained value and the Ok value of the and function", () => {
+      expect(
+        Ok("test")
+          .$andStack(() => Ok("test2"))
+          .$map((stack) => [...stack]),
+      ).toStrictEqual(Ok(["test", "test2"]));
+    });
+
+    it("should continue stacking on an existing stack", () => {
+      expect(
+        Ok("test")
+          .$andStack(() => Ok("test2"))
+          .$andStack(() => Ok("test3"))
+          .$map((stack) => [...stack]),
+      ).toStrictEqual(Ok(["test", "test2", "test3"]));
+    });
+
+    it("should not stack on to a non-stacked array", () => {
+      expect(
+        Ok(["test"])
+          .$andStack(() => Ok("test2"))
+          .$andStack(() => Ok("test3"))
+          .$map((stack) => [...stack]),
+      ).toStrictEqual(Ok([["test"], "test2", "test3"]));
+    });
+
+    it("should handle custom objects with the ResultLikeSymbol", () => {
+      expect(
+        Ok("test")
+          .$andStack(() => ResultLikeOk)
+          .$map((stack) => [...stack]),
+      ).toStrictEqual(Ok(["test", "test"]));
+      expect(Ok("test").$andStack(() => ResultLikeErr)).toStrictEqual(
+        Err("test"),
+      );
+    });
+  });
+
   describe("$andThrough", () => {
     it("should invoke the through function with the contained value", () => {
       const fnThrough = vi.fn(() => Ok());

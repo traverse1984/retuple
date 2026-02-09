@@ -5,6 +5,8 @@ import {
   type ResultLikeErr,
 } from "retuple-symbols";
 
+const RetupleStackSymbol = Symbol("RetupleStackSymbol");
+
 export type Ok = typeof Ok;
 export type Err = typeof Err;
 export type Result<T, E> = (OkTuple<T> | ErrTuple<E>) & Retuple<T, E>;
@@ -1409,11 +1411,51 @@ class ResultOk<T, E> extends Array<T | undefined> implements Retuple<T, E> {
     return asResult(f(this[1]));
   }
 
+  $andStack<U, F, S extends [...any[], any] = [...any[], any]>(
+    this: ThisOk<Stack<S>>,
+    f: (val: T) => ResultLike<U, F>,
+  ): Result<Stack<[...S, U]>, F>;
+  $andStack<U, F>(
+    this: ThisOk<T>,
+    f: (val: T) => ResultLike<U, F>,
+  ): Result<Stack<[T, U]>, F>;
+  $andStack<U, F>(
+    this: ThisOk<T>,
+    f: (val: T) => ResultLike<U, F>,
+  ): Result<Stack, F> {
+    const res = asResult(f(this[1]));
+
+    if (res instanceof ResultErr) {
+      return res;
+    }
+
+    if (this[1] instanceof RetupleStack) {
+      return Ok(new RetupleStack(...this[1], res[1]) as Stack);
+    } else {
+      return Ok(new RetupleStack(this[1], res[1]) as Stack);
+    }
+  }
+
   $andThenAsync<U, F>(
     this: ThisOk<T>,
     f: (val: T) => ResultLikeAwaitable<U, F>,
   ): ResultAsync<U, F> {
     return this.$async().$andThen(f);
+  }
+
+  $andStackAsync<U, F, S extends [...any[], any]>(
+    this: ThisOk<Stack<S>>,
+    f: (val: T) => ResultLikeAwaitable<U, F>,
+  ): ResultAsync<Stack<[...S, U]>, F>;
+  $andStackAsync<U, F>(
+    this: ThisOk<T>,
+    f: (val: T) => ResultLikeAwaitable<U, F>,
+  ): ResultAsync<Stack<[T, U]>, F>;
+  $andStackAsync<U, F>(
+    this: ThisOk<T>,
+    f: (val: T) => ResultLikeAwaitable<U, F>,
+  ): ResultAsync<Stack, F> {
+    return this.$async().$andStack(f);
   }
 
   $andThrough<F>(
@@ -1679,7 +1721,15 @@ class ResultErr<T, E> extends Array<E | undefined> implements Retuple<T, E> {
     return this;
   }
 
+  $andStack(this: ThisErr<E>): ThisErr<E> {
+    return this;
+  }
+
   $andThenAsync(this: ThisErr<E>): ResultAsync<never, E> {
+    return this.$async();
+  }
+
+  $andStackAsync(this: ThisErr<E>): ResultAsync<never, E> {
     return this.$async();
   }
 
@@ -2181,7 +2231,7 @@ class ResultAsync<T, E> {
     this: ResultAsync<T, E>,
     f: (val: T) => ResultLikeAwaitable<U, F>,
   ): ResultAsync<U, E | F>;
-  $andThen<U, F>(
+  $andThen<U = T, F = E>(
     this: ResultAsync<T, E>,
     f: (val: T) => ResultLikeAwaitable<U, F>,
   ): ResultAsync<U, E | F> {
@@ -2190,6 +2240,42 @@ class ResultAsync<T, E> {
         return res instanceof ResultOk
           ? asResult(await f(res[1]))
           : (res as ThisErr<E>);
+      }),
+    );
+  }
+
+  /**
+   * @TODO
+   */
+  $andStack<U = T, F = E, S extends [...any[], any] = [...any[], any]>(
+    this: ResultAsync<Stack<S>, E>,
+    f: (val: T) => ResultLikeAwaitable<U, F>,
+  ): ResultAsync<Stack<[...S, U]>, E | F>;
+  $andStack<U = T, F = E>(
+    this: ResultAsync<T, E>,
+    f: (val: T) => ResultLikeAwaitable<U, F>,
+  ): ResultAsync<Stack<[T, U]>, E | F>;
+  $andStack<U, F>(
+    this: ResultAsync<T, E>,
+    f: (val: T) => ResultLikeAwaitable<U, F>,
+  ): ResultAsync<Stack, any> {
+    return new ResultAsync<Stack, E | F>(
+      this.#inner.then(async (res) => {
+        if (res instanceof ResultErr) {
+          return res;
+        }
+
+        const resThen = asResult(await f(res[1] as T));
+
+        if (resThen instanceof ResultErr) {
+          return resThen as Result<Stack, F>;
+        }
+
+        if (res[1] instanceof RetupleStack) {
+          return Ok(new RetupleStack(...res[1], resThen[1] as U) as Stack);
+        }
+
+        return Ok(new RetupleStack(res[1] as T, resThen[1] as U) as Stack);
       }),
     );
   }
@@ -2690,6 +2776,14 @@ class ResultRetry<T, E>
     /* v8 ignore next */
     throw new Error("Retuple: Unreachable code executed");
   }
+}
+
+type Stack<T extends [...any[], any] = [...any[], any]> = T & {
+  [RetupleStackSymbol]: T;
+};
+
+class RetupleStack<T extends any[]> extends Array<T[number]> {
+  declare [RetupleStackSymbol]: T;
 }
 
 function asResult<T, E>(resultLike: ResultLike<T, E>): Result<T, E> {
@@ -3539,12 +3633,36 @@ interface Retuple<T, E> extends ResultLike<T, E> {
   ): Result<U, E | F>;
 
   /**
+   * @TODO
+   */
+  $andStack<U = T, F = E, S extends [...any[], any] = [...any[], any]>(
+    this: Result<Stack<S>, E>,
+    f: (val: T) => ResultLike<U, F>,
+  ): Result<Stack<[...S, U]>, E | F>;
+  $andStack<U = T, F = E>(
+    this: Result<T, E>,
+    f: (val: T) => ResultLike<U, F>,
+  ): Result<Stack<[T, U]>, E | F>;
+
+  /**
    * Shorthand for `result.$async().$andThen(...)`
    */
   $andThenAsync<U = T, F = E>(
     this: Result<T, E>,
     f: (val: T) => ResultLikeAwaitable<U, F>,
   ): ResultAsync<U, E | F>;
+
+  /**
+   * @TODO
+   */
+  $andStackAsync<U = T, F = E, S extends [...any[], any] = [...any[], any]>(
+    this: Result<Stack<S>, E>,
+    f: (val: T) => ResultLikeAwaitable<U, F>,
+  ): ResultAsync<Stack<[...S, U]>, E | F>;
+  $andStackAsync<U = T, F = E>(
+    this: Result<T, E>,
+    f: (val: T) => ResultLikeAwaitable<U, F>,
+  ): ResultAsync<Stack<[T, U]>, E | F>;
 
   /**
    * Calls the through function when this result is `Ok` and returns:
