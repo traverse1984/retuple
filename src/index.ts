@@ -2245,7 +2245,10 @@ class ResultAsync<T, E> {
   }
 
   /**
-   * @TODO
+   * The same as {@link Retuple.$andStack|$andStack}, except it:
+   *
+   * - can also accept an `async` and function;
+   * - returns {@link ResultAsync}.
    */
   $andStack<U = T, F = E, S extends [...any[], any] = [...any[], any]>(
     this: ResultAsync<Stack<S>, E>,
@@ -3633,7 +3636,33 @@ interface Retuple<T, E> extends ResultLike<T, E> {
   ): Result<U, E | F>;
 
   /**
-   * @TODO
+   * Stacks the result of the and function on to the current contained
+   * value, when this result and the result of the function is `Ok`.
+   *
+   * Otherwise, returns the current `Err` or the `Err` from the and
+   * function.
+   *
+   * A stack is a special tuple which makes it possilble to pass multiple
+   * values down a chain with minimal effort.
+   *
+   * @example
+   *
+   * ```ts
+   * const identity = <T>(val: T) => Ok(val);
+   *
+   * const stack = Ok("test")
+   *    .$andStack((val) => identity(`${val}-2`))
+   *    .$andStack(([val, val2]) => identity(val.length + val2.length))
+   *    .$map(([val, val2, len]) => `'${val}${val2}' has length ${len}`);
+   *
+   * const nostack = Ok("test")
+   *   .$andThen((val) => identity(`${val}-2`).$map((val2) => [val, val2]))
+   *   .$andThen(([val, val2]) => {
+   *      return identity(val.length + val2.length)
+   *         .$map((len) => [val, val2, len]);
+   *   })
+   *   .$map(([val, val2, len]) => `'${val}${val2}' has length ${len}`);
+   * ```
    */
   $andStack<U = T, F = E, S extends [...any[], any] = [...any[], any]>(
     this: Result<Stack<S>, E>,
@@ -3653,7 +3682,7 @@ interface Retuple<T, E> extends ResultLike<T, E> {
   ): ResultAsync<U, E | F>;
 
   /**
-   * @TODO
+   * Shorthand for `result.$async().$andStack(...)`
    */
   $andStackAsync<U = T, F = E, S extends [...any[], any] = [...any[], any]>(
     this: Result<Stack<S>, E>,

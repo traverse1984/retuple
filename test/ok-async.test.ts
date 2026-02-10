@@ -532,6 +532,82 @@ describe("ResultAsync (Ok)", async () => {
     });
   });
 
+  describe("$andStack", () => {
+    it("should invoke the and function with the contained value", async () => {
+      const fnAnd = vi.fn(() => Err());
+
+      await Ok("test").$async().$andStack(fnAnd);
+
+      expect(fnAnd).toHaveBeenCalledExactlyOnceWith("test");
+    });
+
+    it("should reject when the and function throws", async () => {
+      await expect(Ok().$async().$andStack(fnThrow)).rejects.toBe(errThrow);
+    });
+
+    it("should reject when the and function rejects", async () => {
+      await expect(Ok().$async().$andStack(fnReject)).rejects.toBe(errReject);
+    });
+
+    it("should resolve to the error when the and result is Err", async () => {
+      await expect(
+        Ok()
+          .$async()
+          .$andStack(() => Err("test")),
+      ).resolves.toStrictEqual(Err("test"));
+
+      await expect(
+        Ok()
+          .$async()
+          .$andStack(async () => Err("test")),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+
+    it("should resolve to a tuple of the contained value and the Ok value of the and function", async () => {
+      await expect(
+        Ok("test")
+          .$async()
+          .$andStack(() => Ok("test2"))
+          .$map((stack) => [...stack]),
+      ).resolves.toStrictEqual(Ok(["test", "test2"]));
+    });
+
+    it("should continue stacking on an existing stack", async () => {
+      await expect(
+        Ok("test")
+          .$async()
+          .$andStack(async () => Ok("test2"))
+          .$andStack(() => Ok("test3").$async())
+          .$map((stack) => [...stack]),
+      ).resolves.toStrictEqual(Ok(["test", "test2", "test3"]));
+    });
+
+    it("should not stack on to a non-stack array", async () => {
+      await expect(
+        Ok(["test"])
+          .$async()
+          .$andStack(async () => Ok("test2"))
+          .$andStack(async () => Ok("test3"))
+          .$map((stack) => [...stack]),
+      ).resolves.toStrictEqual(Ok([["test"], "test2", "test3"]));
+    });
+
+    it("should handle custom objects with the ResultLikeSymbol", async () => {
+      await expect(
+        Ok("test")
+          .$async()
+          .$andStack(async () => ResultLikeOk)
+          .$map((stack) => [...stack]),
+      ).resolves.toStrictEqual(Ok(["test", "test"]));
+
+      await expect(
+        Ok("test")
+          .$async()
+          .$andStack(async () => ResultLikeErr),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+  });
+
   describe("$andThrough", () => {
     it("should invoke the through function with the contained value", async () => {
       const fnThrough = vi.fn(() => Ok());

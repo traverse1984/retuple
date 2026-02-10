@@ -549,6 +549,24 @@ describe("ResultAsync (Err)", () => {
     });
   });
 
+  describe("$andStack", () => {
+    it("should not invoke the and function", async () => {
+      const fnAnd = vi.fn(() => Ok());
+
+      await Err().$async().$andStack(fnAnd);
+
+      expect(fnAnd).not.toHaveBeenCalled();
+    });
+
+    it("should return Err with the contained value", async () => {
+      await expect(
+        Err("test")
+          .$async()
+          .$andStack(() => Ok()),
+      ).resolves.toStrictEqual(Err("test"));
+    });
+  });
+
   describe("$andThrough", () => {
     it("should not invoke the through function", async () => {
       const fnThrough = vi.fn(() => Ok());
