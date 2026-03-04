@@ -1833,6 +1833,52 @@ class ResultAsync<T, E> {
   }
 
   /**
+   * Resolves this `ResultAsync` using the provided resolver. The resolver
+   * receives a promise which resolves when the result is `Ok` and rejects if
+   * the result is `Err`.
+   *
+   * This method should only be called when the `E` type extends `Error`. This
+   * is enforced with a type constraint. If the error value is not an instance
+   * of Error, the promise rejects with `RetupleExpectFailed`.
+   *
+   * @example
+   *
+   * ```ts
+   * async function resolver(promise: Promise<URL>): string {
+   *   try {
+   *     const url = await promise;
+   *
+   *     return url.toString();
+   *   } catch (cause) {
+   *     throw new Error("Not a valid URL", { cause });
+   *   }
+   * }
+   *
+   * const urlString = await Result.$safeAsync(() => getDataAsync())
+   *   .$andSafe((data) => new URL(data.url))
+   *   .$resolve(resolver);
+   * ```
+   */
+  async $resolve<U = T>(
+    this: ResultAsync<T, Error>,
+    resolver: (promise: Promise<T>) => PromiseLike<U>,
+  ): Promise<U> {
+    return this.#inner.then(async (result) => {
+      if (result instanceof ResultOk) {
+        return await resolver(Promise.resolve(result[1]));
+      }
+
+      return await resolver(
+        Promise.reject(
+          result[0] instanceof Error
+            ? result[0]
+            : new RetupleExpectFailed(result[0]),
+        ),
+      );
+    });
+  }
+
+  /**
    * The same as {@link Retuple.$unwrapErr|$unwrapErr}, except it returns
    * a `Promise`.
    */

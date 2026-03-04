@@ -64,6 +64,70 @@ describe("ResultAsync (Err)", () => {
     });
   });
 
+  describe("$resolve", () => {
+    it("should invoke the resolver function", async () => {
+      const fnResolver = vi.fn(async (promise: Promise<any>) => {
+        try {
+          await promise;
+        } catch (err) {
+          return `rejected:${err}`;
+        }
+      });
+
+      await Err(new Error("test")).$async().$resolve(fnResolver);
+
+      expect(fnResolver).toHaveBeenCalled();
+    });
+
+    it("should resolve when the resolver resolves", async () => {
+      const fnResolver = async (promise: Promise<any>) => {
+        try {
+          await promise;
+        } catch (error) {
+          return `resolved:${(error as Error).message}`;
+        }
+      };
+
+      await expect(
+        Err(new Error("test")).$async().$resolve(fnResolver),
+      ).resolves.toBe("resolved:test");
+    });
+
+    it("should reject when the resolver rejects", async () => {
+      const fnResolver = async (promise: Promise<any>) => {
+        try {
+          await promise;
+        } catch (error) {
+          throw `rejected:${(error as Error).message}`;
+        }
+      };
+
+      await expect(
+        Err(new Error("test")).$async().$resolve(fnResolver),
+      ).rejects.toBe("rejected:test");
+    });
+
+    it("should pass the resolver a promise rejection with RetupleExpectFailed when the contained value is not an instance of Error", async () => {
+      const fnResolver = async (promise: Promise<any>) => {
+        await promise;
+      };
+
+      await expect(
+        Err<any>("test").$async().$resolve(fnResolver),
+      ).rejects.toThrow(RetupleExpectFailed);
+    });
+
+    it("should include the contained value on the rejecting RetupleExpectFailed passed to the resolver", async () => {
+      const fnResolver = async (promise: Promise<any>) => {
+        await promise;
+      };
+
+      await expect(
+        Err<any>("test").$async().$resolve(fnResolver),
+      ).rejects.toThrow(expect.objectContaining({ value: "test" }));
+    });
+  });
+
   describe("$unwrapErr", () => {
     it("should resolve to the contained value", async () => {
       await expect(Err("test").$async().$unwrapErr()).resolves.toBe("test");

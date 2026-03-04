@@ -32,6 +32,44 @@ describe("ResultAsync (Ok)", async () => {
     });
   });
 
+  describe("$resolve", () => {
+    it("should invoke the resolver function", async () => {
+      const fnResolver = vi.fn(async (promise: Promise<any>) => {
+        const value = await promise;
+
+        return `resolved:${value}`;
+      });
+
+      await Ok("test").$async().$resolve(fnResolver);
+
+      expect(fnResolver).toHaveBeenCalled();
+    });
+
+    it("should resolve when the resolver resolves", async () => {
+      const fnResolver = async (promise: Promise<any>) => {
+        const value = await promise;
+
+        return `resolved:${value}`;
+      };
+
+      await expect(Ok("test").$async().$resolve(fnResolver)).resolves.toBe(
+        "resolved:test",
+      );
+    });
+
+    it("should reject when the resolver rejects", async () => {
+      const fnResolver = async (promise: Promise<any>) => {
+        const value = await promise;
+
+        throw `rejected:${value}`;
+      };
+
+      await expect(Ok("test").$async().$resolve(fnResolver)).rejects.toBe(
+        "rejected:test",
+      );
+    });
+  });
+
   describe("$unwrapErr", () => {
     it("should reject with RetupleUnwrapErrFailed", async () => {
       await expect(Ok().$async().$unwrapErr()).rejects.toThrow(
