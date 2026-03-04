@@ -1299,9 +1299,9 @@ class ResultOk<T, E> extends Array<T | undefined> implements Retuple<T, E> {
     return this;
   }
 
-  $mapErrMatching(this: ThisOk<T>): ThisOk<T> {
-    return this;
-  }
+  // $mapErrMatching(this: ThisOk<T>): ThisOk<T> {
+  //   return this;
+  // }
 
   $mapOr<U, V>(this: ThisOk<T>, _def: U, f: (val: T) => V): Result<V, never> {
     return Ok(f(this[1]));
@@ -1636,20 +1636,20 @@ class ResultErr<T, E> extends Array<E | undefined> implements Retuple<T, E> {
     return Err(f(this[0]));
   }
 
-  $mapErrMatching<F, C extends new (...args: any[]) => Error>(
-    this: Result<T, E>,
-    { classes, with: f }: MapErrMatchingParams<F, C>,
-  ): Result<never, E | F> {
-    const err = this[0];
+  // $mapErrMatching<F, C extends new (...args: any[]) => Error>(
+  //   this: Result<T, E>,
+  //   { classes, with: f }: MapErrMatchingParams<F, C>,
+  // ): Result<never, E | F> {
+  //   const err = this[0];
 
-    for (const ctor of classes) {
-      if (err instanceof ctor) {
-        return Err(f(err as InstanceType<C>));
-      }
-    }
+  //   for (const ctor of classes) {
+  //     if (err instanceof ctor) {
+  //       return Err(f(err as InstanceType<C>));
+  //     }
+  //   }
 
-    return this as Result<never, E>;
-  }
+  //   return this as Result<never, E>;
+  // }
 
   $mapOr<U>(this: ThisErr<E>, def: U): Result<U, never> {
     return Ok(def);
@@ -1957,17 +1957,17 @@ class ResultAsync<T, E> {
     );
   }
 
-  /**
-   * @TODO
-   */
-  $mapErrMatching<F, C extends new (...args: any[]) => Error>(
-    this: ResultAsync<T, E>,
-    params: MapErrMatchingParams<F, C>,
-  ): ResultAsync<T, E | F> {
-    return new ResultAsync(
-      this.#inner.then(async (res) => res.$mapErrMatching(params)),
-    );
-  }
+  // /**
+  //  * @TODO
+  //  */
+  // $mapErrMatching<F, C extends new (...args: any[]) => Error>(
+  //   this: ResultAsync<T, E>,
+  //   params: MapErrMatchingParams<F, C>,
+  // ): ResultAsync<T, E | F> {
+  //   return new ResultAsync(
+  //     this.#inner.then(async (res) => res.$mapErrMatching(params)),
+  //   );
+  // }
 
   /**
    * The same as {@link Retuple.$mapOr|$mapOr}, except it returns
@@ -3418,16 +3418,16 @@ interface Retuple<T, E> extends ResultLike<T, E> {
    */
   $mapErr<F = E>(this: Result<T, E>, f: (err: E) => F): Result<T, F>;
 
-  /**
-   * @TODO
-   */
-  $mapErrMatching<F, C extends new (...args: any[]) => Error>(
-    this: Result<T, E>,
-    mapper: {
-      classes: [C, ...C[]];
-      with: (err: InstanceType<C>) => F;
-    },
-  ): Result<T, E | F>;
+  // /**
+  //  * @TODO
+  //  */
+  // $mapErrMatching<F, C extends new (...args: any[]) => Error>(
+  //   this: Result<T, E>,
+  //   mapper: {
+  //     classes: [C, ...C[]];
+  //     with: (err: InstanceType<C>) => F;
+  //   },
+  // ): Result<T, E | F>;
 
   /**
    * Returns `Ok` containing the return value of the map function when this
