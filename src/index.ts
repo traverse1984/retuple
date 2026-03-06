@@ -1498,6 +1498,28 @@ class ResultOk<T, E> extends Array<T | undefined> implements Retuple<T, E> {
     return this.$async().$andSafe(f, mapError);
   }
 
+  $andThroughSafe<F>(
+    this: ThisOk<T>,
+    f: (val: T) => any,
+    mapError: (err: unknown) => F = ensureError,
+  ): Result<T, F> {
+    try {
+      f(this[1]);
+
+      return this;
+    } catch (err) {
+      return Err(mapError(err));
+    }
+  }
+
+  $andThroughSafeAsync<F>(
+    this: ThisOk<T>,
+    f: (val: T) => any,
+    mapError: (err: unknown) => F = ensureError,
+  ): ResultAsync<T, E | F> {
+    return this.$async().$andThroughSafe(f, mapError);
+  }
+
   $andSafePromise<U, F>(
     this: ThisOk<T>,
     promise: PromiseLike<U>,
@@ -1765,6 +1787,14 @@ class ResultErr<T, E> extends Array<E | undefined> implements Retuple<T, E> {
   }
 
   $andSafeAsync(this: ThisErr<E>): ResultAsync<never, E> {
+    return this.$async();
+  }
+
+  $andThroughSafe(this: ThisErr<E>): ThisErr<E> {
+    return this;
+  }
+
+  $andThroughSafeAsync(this: ThisErr<E>): ResultAsync<never, E> {
     return this.$async();
   }
 
@@ -2417,6 +2447,40 @@ class ResultAsync<T, E> {
 
         try {
           return Ok(await f(res[1] as T));
+        } catch (err) {
+          return Err(mapError(err));
+        }
+      }),
+    );
+  }
+
+  /**
+   * @TODO
+   */
+  $andThroughSafe(
+    this: ResultAsync<T, E>,
+    f: (val: T) => any,
+  ): ResultAsync<T, E | Error>;
+  $andThroughSafe<F = E>(
+    this: ResultAsync<T, E>,
+    f: (val: T) => any,
+    mapError: (err: unknown) => F,
+  ): ResultAsync<T, E | F>;
+  $andThroughSafe<F>(
+    this: ResultAsync<T, E>,
+    f: (val: T) => any,
+    mapError: (err: unknown) => F = ensureError,
+  ): ResultAsync<T, E | F | Error> {
+    return new ResultAsync<T, E | F | Error>(
+      this.#inner.then(async (res) => {
+        if (res instanceof ResultErr) {
+          return res;
+        }
+
+        try {
+          await f(res[1] as T);
+
+          return res;
         } catch (err) {
           return Err(mapError(err));
         }
@@ -3866,6 +3930,29 @@ interface Retuple<T, E> extends ResultLike<T, E> {
   ): ResultAsync<U, E | F>;
 
   /**
+   * Shorthand for `result.$andThrough((x) => Result.$safe(() => f(x)))`;
+   */
+  $andThroughSafe(this: Result<T, E>, f: (val: T) => any): Result<T, E | Error>;
+  $andThroughSafe<F = E>(
+    this: Result<T, E>,
+    f: (val: T) => any,
+    mapError: (err: unknown) => F,
+  ): Result<T, E | F>;
+
+  /**
+   * Shorthand for result.$async().$andThrough(...);
+   */
+  $andThroughSafeAsync(
+    this: Result<T, E>,
+    f: (val: T) => any,
+  ): ResultAsync<T, E | Error>;
+  $andThroughSafeAsync<F = E>(
+    this: Result<T, E>,
+    f: (val: T) => any,
+    mapError: (err: unknown) => F,
+  ): ResultAsync<T, E | F>;
+
+  /**
    * Shorthand for `result.$async().$andSafePromise(...)`
    */
   $andSafePromise<U = T>(
@@ -4256,11 +4343,6 @@ type CollectErr<
   TResults[keyof TResults] extends ResultLikeAwaitable<any, infer E>
     ? E
     : never;
-
-interface MapErrMatchingParams<F, C extends new (...args: any[]) => Error> {
-  classes: [C, ...C[]];
-  with: (err: InstanceType<C>) => F;
-}
 
 type Truthy<T> = Exclude<T, false | null | undefined | 0 | 0n | "">;
 type Falsey<T> = Extract<T, false | null | undefined | 0 | 0n | "">;
