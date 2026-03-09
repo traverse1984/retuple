@@ -959,12 +959,21 @@ function $anyPromised<const TResults extends ResultLikeAwaitable<any, any>[]>(
  * }).$unwrapErr();
  * ```
  */
-function $collect<TResults extends Record<string, ResultLike<any, any>>>(
-  results: TResults,
-): Result<CollectOk<TResults>, CollectErr<TResults>> {
+function $collect<
+  TResults extends Record<
+    string,
+    ResultLike<any, any> | false | null | undefined
+  >,
+>(results: TResults): Result<CollectOk<TResults>, CollectErr<TResults>> {
   const oks: Record<string, any> = {};
 
   for (const [key, result] of Object.entries(results)) {
+    if (!result) {
+      oks[key] = Ok(result);
+
+      continue;
+    }
+
     const { ok, value } = result[ResultLikeSymbol]();
 
     if (ok) {
@@ -4330,15 +4339,25 @@ type AnyErr<TResults extends ResultLikeAwaitable<any, any>[]> = {
     : never;
 };
 
-type CollectOk<TResults extends Record<string, ResultLikeAwaitable<any, any>>> =
-  {
-    [K in keyof TResults]: TResults[K] extends ResultLikeAwaitable<infer T, any>
-      ? T
-      : never;
-  } & {};
+type CollectOk<
+  TResults extends Record<
+    string,
+    ResultLikeAwaitable<any, any> | false | null | undefined
+  >,
+> = {
+  [K in keyof TResults]: Exclude<
+    TResults[K],
+    false | null | undefined
+  > extends ResultLikeAwaitable<infer T, any>
+    ? T | Extract<TResults[K], false | null | undefined>
+    : Extract<TResults[K], false | null | undefined>;
+} & {};
 
 type CollectErr<
-  TResults extends Record<string, ResultLikeAwaitable<any, any>>,
+  TResults extends Record<
+    string,
+    ResultLikeAwaitable<any, any> | false | null | undefined
+  >,
 > =
   TResults[keyof TResults] extends ResultLikeAwaitable<any, infer E>
     ? E
