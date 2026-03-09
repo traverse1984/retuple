@@ -969,7 +969,7 @@ function $collect<
 
   for (const [key, result] of Object.entries(results)) {
     if (!result) {
-      oks[key] = Ok(result);
+      oks[key] = result;
 
       continue;
     }
