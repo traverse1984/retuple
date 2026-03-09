@@ -991,13 +991,20 @@ function $collect<
  * promises and returns {@link ResultAsync}.
  */
 function $collectPromised<
-  TResults extends Record<string, ResultLikeAwaitable<any, any>>,
+  TResults extends Record<
+    string,
+    ResultLikeAwaitable<any, any> | false | null | undefined
+  >,
 >(results: TResults): ResultAsync<CollectOk<TResults>, CollectErr<TResults>> {
   return new ResultAsync(
     new Promise((resolve, reject) => {
       void Promise.all(
-        Object.entries(results).map(([key, result]) =>
-          Promise.resolve(result).then(
+        Object.entries(results).map(([key, result]) => {
+          if (!result) {
+            return [key, result];
+          }
+
+          return Promise.resolve(result).then(
             (result) => {
               const { ok, value } = result[ResultLikeSymbol]();
 
@@ -1012,8 +1019,8 @@ function $collectPromised<
               // change the state of the Promise.
               return Promise.reject();
             },
-          ),
-        ),
+          );
+        }),
       ).then(
         (values) =>
           resolve(Ok(Object.fromEntries(values) as CollectOk<TResults>)),
